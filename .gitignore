@@ -13,6 +13,9 @@ env/
 # 본문은 이미 db.sqlite3 에 적재되어 있어 서버는 PDF 없이도 동작한다.
 tech_insight/data_source/
 
+# ===== 기획 문서 (내부용 — GitHub 제외) =====
+*.pptx
+
 # ===== 비밀값 / 환경변수 =====
 .env
 *.env
