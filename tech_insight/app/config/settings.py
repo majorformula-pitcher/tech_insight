@@ -54,6 +54,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # 운영 모드에서 정적파일(CSS/JS) 서빙 (SecurityMiddleware 바로 다음이 표준 위치)
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -130,3 +132,13 @@ USE_TZ = True
 STATIC_URL = 'static/'
 # 운영 배포 시 `collectstatic` 으로 정적파일을 모을 위치
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# WhiteNoise: 운영 모드에서 정적파일을 압축·캐싱하여 gunicorn이 직접 서빙
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
