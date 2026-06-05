@@ -1,0 +1,11 @@
+# Tech Insight 플랫폼 의존성
+# 설치: pip install -r requirements.txt
+
+# 웹 프레임워크
+Django==6.0.5
+
+# PDF 본문 추출 (2단 편집 대응 파이프라인)
+pdfplumber==0.11.9
+
+# 운영 서버용 WSGI 서버 (개발 runserver 대신)
+gunicorn==23.0.0

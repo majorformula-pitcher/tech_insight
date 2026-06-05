@@ -1,0 +1,184 @@
+{% extends "admin/base.html" %}
+{% comment %}
+  밝고 화사한 admin 테마.
+  Django admin은 CSS 변수(--primary 등)로 색을 관리하므로 변수만 덮어쓰면 전체 톤이 바뀐다.
+{% endcomment %}
+{% load i18n %}
+
+{% block title %}{{ title }} | Tech Insight{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">✨ Tech Insight 관리</a></div>
+{% endblock %}
+
+
+{% block extrastyle %}{{ block.super }}
+<style>
+:root {
+  /* 메인 포인트 색: 산뜻한 하늘/인디고 */
+  --primary: #4f6ef7;
+  --secondary: #6d83f5;
+  --accent: #ff7eb6;
+  --primary-fg: #ffffff;
+
+  /* 링크 */
+  --link-fg: #3a5bd9;
+  --link-hover-color: #ff7eb6;
+  --link-selected-fg: #4f6ef7;
+
+  /* 헤더 (상단 바) */
+  --header-color: #ffffff;
+  --header-branding-color: #ffffff;
+  --header-bg: linear-gradient(90deg, #5b8df5 0%, #8a7ff0 100%);
+  --header-link-color: #ffffff;
+
+  /* 모듈/패널 헤더 */
+  --module-bg: #f4f7ff;
+
+  /* 배경: 밝고 따뜻하게 */
+  --body-bg: #f7f9ff;
+  --body-fg: #2b2f3a;
+  --body-quiet-color: #6b7280;
+  --body-loud-color: #1f2433;
+
+  /* 선택/하이라이트 */
+  --selected-bg: #eaf0ff;
+  --selected-row: #fff4fa;
+
+  /* 버튼 */
+  --button-bg: #4f6ef7;
+  --button-fg: #fff;
+  --button-hover-bg: #3a5bd9;
+  --default-button-bg: #ff7eb6;
+  --default-button-hover-bg: #ff5fa3;
+  --close-button-bg: #94a3b8;
+  --close-button-hover-bg: #64748b;
+
+  /* 테두리 */
+  --border-color: #e3e8f5;
+  --darkened-bg: #eef2fc;
+  --hairline-color: #eef2fc;
+
+  /* 메시지/링크 */
+  --message-success-bg: #e6fbf0;
+  --message-warning-bg: #fff7e6;
+  --message-error-bg: #ffeaea;
+}
+
+/* 상단 헤더에 그라데이션 적용 */
+#header {
+  background: var(--header-bg);
+  box-shadow: 0 2px 10px rgba(79,110,247,0.18);
+}
+
+/* 좌측 사이드바 앱 헤더 */
+.module h2, .module caption, .inline-group h2 {
+  background: linear-gradient(90deg, #5b8df5 0%, #8a7ff0 100%);
+  color: #fff;
+  border-radius: 8px 8px 0 0;
+}
+
+/* 패널/모듈을 카드처럼 */
+.module {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(80,100,180,0.06);
+  overflow: hidden;
+}
+
+/* 좌측 네비게이션(앱 목록) 현재 항목 강조 */
+#nav-sidebar .current-model {
+  background: var(--selected-bg);
+}
+
+/* 버튼을 둥글고 화사하게 */
+.button, input[type=submit], input[type=button], .submit-row input, a.button {
+  border-radius: 8px;
+}
+
+/* 저장 버튼(기본 액션) 핑크 포인트 */
+.submit-row input.default {
+  background: var(--default-button-bg);
+}
+.submit-row input.default:hover {
+  background: var(--default-button-hover-bg);
+}
+
+/* 링크 색 */
+a:link, a:visited { color: var(--link-fg); }
+a:hover { color: var(--link-hover-color); }
+
+/* 객체 변경 목록 행 hover */
+#result_list tbody tr:hover {
+  background: var(--selected-row);
+}
+
+/* 브랜딩 글씨 (헤더 그라데이션 위 → 흰색이 가장 선명) */
+#site-name a,
+#site-name a:link,
+#site-name a:visited { color: #ffffff !important; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+#site-name a:hover { color: #eaf0ff !important; }
+
+/* ===== 본문 원문 등 긴 텍스트 읽기 편하게 ===== */
+.readable-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  /* 한글 가독성 좋은 본문용 산세리프 */
+  font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", "맑은 고딕",
+               -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !important;
+  font-size: 15.5px !important;
+  line-height: 1.9 !important;       /* 줄 간격 넉넉히 */
+  letter-spacing: 0.1px;
+  color: #2b2f3a;
+  background: #fffdf8;               /* 살짝 따뜻한 종이색 → 눈부심 완화 */
+  border: 1px solid #e3e8f5 !important;
+  border-radius: 10px !important;
+  padding: 18px 22px !important;
+  box-shadow: inset 0 1px 3px rgba(80,100,180,0.05);
+  resize: vertical;
+}
+.readable-textarea:focus {
+  outline: none;
+  border-color: #4f6ef7 !important;
+  box-shadow: 0 0 0 3px rgba(79,110,247,0.12);
+  background: #ffffff;
+}
+
+/* ===== 변경 폼 전체 가독성 ===== */
+/* 필드 라벨을 또렷하게 */
+.form-row label, .aligned label {
+  font-weight: 600;
+  color: #3a4256;
+}
+/* 입력칸도 둥글고 부드럽게 */
+.aligned input[type=text], .aligned input[type=url], .vTextField, .aligned select {
+  border-radius: 8px;
+  border: 1px solid #e3e8f5;
+  padding: 7px 10px;
+  font-size: 14px;
+  line-height: 1.4;        /* select 글자 잘림 방지 (textarea의 넓은 줄간격이 번지지 않도록) */
+}
+/* 드롭다운(select)은 줄 높이를 확실히 정상으로, 높이도 충분히 */
+.aligned select, select {
+  line-height: 1.4 !important;
+  height: auto;
+  min-height: 34px;
+}
+/* 긴 제목이 다 보이도록 텍스트 입력칸 폭 넓히기 */
+.aligned input[type=text].vTextField,
+.aligned input[type=url].vTextField {
+  width: 90%;
+  max-width: 760px;
+}
+/* 각 필드 줄 사이 여백 */
+.form-row {
+  padding: 14px 12px;
+}
+fieldset.module {
+  padding-bottom: 6px;
+}
+/* 페이지 제목(객체명) 크게 */
+.module h2 { font-size: 14px; letter-spacing: 0.3px; }
+#content h1 { font-size: 22px; }
+</style>
+{% endblock %}
