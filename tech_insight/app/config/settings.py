@@ -142,3 +142,8 @@ STORAGES = {
         'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
     },
 }
+
+# 업로드된 원문 PDF 등 미디어 파일
+# 구조: media/정보과학회지/26_5/논문제목.pdf  (Document.file_path 기준)
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
