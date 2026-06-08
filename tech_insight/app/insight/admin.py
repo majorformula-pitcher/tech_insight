@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.db import models
 from django.forms import Textarea
-from django.utils.html import format_html
 
 from .models import Source, Keyword, Document, Chunk
 
@@ -39,10 +38,11 @@ class DocumentAdmin(admin.ModelAdmin):
     date_hierarchy = "published_date"
     filter_horizontal = ("keywords",)
     inlines = [ChunkInline]
-    readonly_fields = ("created_at", "pdf_download")
+    readonly_fields = ("created_at",)
 
     # 편집 화면 구성: 본문 원문(raw_text)은 fieldsets 에서 제외해 화면에서 숨긴다.
     # (DB에는 그대로 남아 챗봇/검색용으로 보존됨)
+    # 원문 PDF는 저작권(공중송신·배포) 문제로 웹 제공하지 않는다 — 요약만 노출.
     fieldsets = (
         ("기본 정보", {
             "fields": ("source", "title", "authors", "affiliations", "published_date", "status"),
@@ -50,9 +50,10 @@ class DocumentAdmin(admin.ModelAdmin):
         ("AI 요약", {
             "fields": ("summary",),
         }),
-        ("원문", {
-            "fields": ("pdf_download", "url", "file_path"),
-            "description": "본문 텍스트는 챗봇·검색용으로 DB에 보관되며 화면에는 표시하지 않습니다. 원문은 아래 PDF로 확인하세요.",
+        ("출처 메타", {
+            "fields": ("url", "file_path"),
+            "description": "본문 텍스트는 챗봇·검색용으로 DB에만 보관하며 화면에 노출하지 않습니다. "
+                           "원문 PDF는 저작권상 웹 제공하지 않습니다(요약만 제공).",
         }),
         ("키워드 · 메타", {
             "fields": ("keywords", "created_at"),
@@ -69,24 +70,3 @@ class DocumentAdmin(admin.ModelAdmin):
             })
         },
     }
-
-    @admin.display(description="PDF 원문")
-    def pdf_download(self, obj):
-        """PDF 파일이 서버에 있으면 다운로드 링크, 없으면 안내 문구."""
-        if not obj.file_path:
-            return "— (파일 경로 없음)"
-        # /media/원본상대경로 로 접근 (settings 의 MEDIA_URL/MEDIA_ROOT 기준)
-        from django.conf import settings
-        pdf_full = settings.MEDIA_ROOT / obj.file_path
-        if not pdf_full.is_file():
-            return format_html(
-                '<span style="color:#999;">PDF 미업로드</span> '
-                '<span style="font-size:11px;color:#bbb;">({})</span>', obj.file_path
-            )
-        url = settings.MEDIA_URL + obj.file_path.replace("\\", "/")
-        return format_html(
-            '<a href="{}" target="_blank" '
-            'style="display:inline-block;background:#4f6ef7;color:#fff;'
-            'padding:6px 14px;border-radius:8px;text-decoration:none;font-weight:600;">'
-            '⬇ PDF 원문 다운로드</a>', url
-        )
