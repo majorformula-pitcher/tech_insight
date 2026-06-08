@@ -12,3 +12,6 @@ gunicorn==23.0.0
 
 # 운영 모드에서 정적파일(CSS/JS) 서빙
 whitenoise==6.8.2
+
+# 엑셀(.xlsx) 읽기 — Cowork 추출 결과 적재용
+openpyxl==3.1.5
