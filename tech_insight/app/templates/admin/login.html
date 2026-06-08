@@ -31,12 +31,10 @@
   </div>
   <div class="submit-row" style="display:flex; gap:10px; align-items:center;">
     <input type="submit" value="{% translate 'Log in' %}">
-    {% if is_debug %}
-    {# 개발 편의용 자동 로그인 — 배포 시 삭제 #}
+    {# 🚨 자동 로그인(무인증) — 운영 전 반드시 삭제 #}
     <a href="/dev-login/"
        style="background:#10b981;color:#fff;padding:9px 18px;border-radius:8px;
               text-decoration:none;font-weight:700;">입장</a>
-    {% endif %}
   </div>
 </form>
 </div>
