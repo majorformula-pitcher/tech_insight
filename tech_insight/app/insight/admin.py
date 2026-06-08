@@ -52,8 +52,8 @@ class DocumentAdmin(admin.ModelAdmin):
         }),
         ("AI 요약", {
             # summary_bullets: 문장별 불릿 읽기용 표시(읽기 전용)
-            # summary: 실제 편집용 원본 텍스트
-            "fields": ("summary_bullets", "summary"),
+            # 편집은 엑셀 재적재로 하므로 편집칸(summary)은 화면에서 제외.
+            "fields": ("summary_bullets",),
         }),
         ("출처 메타", {
             "fields": ("url", "file_path"),
@@ -76,18 +76,23 @@ class DocumentAdmin(admin.ModelAdmin):
         },
     }
 
-    @admin.display(description="요약 (읽기용)")
+    @admin.display(description="AI 요약")
     def summary_bullets(self, obj):
         """요약을 문장 단위로 끊어 불릿(•) 리스트로 보여준다(읽기 전용)."""
         if not obj.summary:
             return "—"
-        # 마침표/물음표/느낌표 뒤에서 문장 분리 (소수점·약어는 대체로 한국어 요약엔 적음)
+        # 마침표/물음표/느낌표 뒤에서 문장 분리
         sentences = re.split(r"(?<=[.!?])\s+", obj.summary.strip())
         sentences = [s.strip() for s in sentences if s.strip()]
-        items = "".join(
-            f'<li style="margin-bottom:8px;">{s}</li>' for s in sentences
+        # admin CSS가 ul 불릿을 죽이므로, 불릿 문자를 직접 넣고 flex로 정렬한다.
+        rows = "".join(
+            '<div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;">'
+            '<span style="color:#4f6ef7;font-size:20px;line-height:1.5;flex-shrink:0;">•</span>'
+            f'<span style="flex:1;">{s}</span>'
+            '</div>'
+            for s in sentences
         )
         return mark_safe(
-            '<ul style="margin:0;padding-left:22px;font-size:16px;line-height:1.85;'
-            'color:#2b2f3a;max-width:840px;list-style:disc;">' + items + '</ul>'
+            '<div style="font-size:17px;line-height:1.7;color:#2b2f3a;max-width:860px;'
+            'padding:6px 0;">' + rows + '</div>'
         )
