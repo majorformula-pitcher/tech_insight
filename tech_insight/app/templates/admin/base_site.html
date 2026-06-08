@@ -182,13 +182,18 @@ fieldset.module {
 #content h1 { font-size: 22px; }
 
 /* ===== 문서 편집화면: 가로폭 제한 + 폰트 키우기 ===== */
-/* fieldset 묶음 + 본문조각(inline) + 버튼줄을 같은 폭으로 통일 (1080px) */
-.change-form #content-main > form > div > fieldset.module,
-.change-form #content-main > form > div.inline-group,
-.change-form #content-main > form > div.submit-row,
-.change-form #content-main > form > p.deletelink-box {
+/* fieldset 묶음 + 본문조각(inline) + 버튼줄을 같은 폭으로 통일 (1080px).
+   직계(>) 조건 없이 잡아 inline/submit-row 도 확실히 폭 제한이 걸리게 한다. */
+.change-form #content-main fieldset.module,
+.change-form #content-main .inline-group,
+.change-form #content-main .submit-row {
   max-width: 1080px;
+  box-sizing: border-box;
 }
+/* 삭제 버튼이 화면 끝으로 튀지 않도록 — submit-row 폭 안에 머무름 */
+.change-form .submit-row { overflow: hidden; }
+.change-form .submit-row a.deletelink-box,
+.change-form .submit-row .deletelink-box { float: right; }
 /* 라벨·입력칸 글자 키우기 (편집화면 한정) */
 .change-form .form-row label,
 .change-form .aligned label { font-size: 15px; }
