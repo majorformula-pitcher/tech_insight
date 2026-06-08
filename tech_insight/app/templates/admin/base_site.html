@@ -181,14 +181,13 @@ fieldset.module {
 .module h2 { font-size: 14px; letter-spacing: 0.3px; }
 #content h1 { font-size: 22px; }
 
-/* ===== 문서 편집화면: 가로폭 절반으로 + 폰트 키우기 ===== */
-/* 변경 폼(fieldset 묶음)을 읽기 좋은 폭으로 제한 */
-.change-form #content-main > form > div > fieldset.module {
-  max-width: 900px;
-}
+/* ===== 문서 편집화면: 가로폭 제한 + 폰트 키우기 ===== */
+/* fieldset 묶음 + 본문조각(inline) + 버튼줄을 같은 폭으로 통일 (1080px) */
+.change-form #content-main > form > div > fieldset.module,
+.change-form #content-main > form > div.inline-group,
 .change-form #content-main > form > div.submit-row,
 .change-form #content-main > form > p.deletelink-box {
-  max-width: 900px;
+  max-width: 1080px;
 }
 /* 라벨·입력칸 글자 키우기 (편집화면 한정) */
 .change-form .form-row label,
@@ -197,11 +196,11 @@ fieldset.module {
 .change-form .aligned input[type=url],
 .change-form .vTextField,
 .change-form .aligned select { font-size: 15px; padding: 9px 12px; }
-/* 입력칸 폭도 폼 안에서 적당히 (절반 폭 안에 꽉 차되 과하지 않게) */
+/* 입력칸 폭 (제목이 안 잘리도록 넉넉히) */
 .change-form .aligned input[type=text].vTextField,
-.change-form .aligned input[type=url].vTextField { width: 100%; max-width: 560px; }
+.change-form .aligned input[type=url].vTextField { width: 100%; max-width: 720px; }
 /* 요약 등 textarea 도 폼 폭에 맞춤 */
-.change-form .readable-textarea { max-width: 720px; font-size: 16px !important; }
+.change-form .readable-textarea { max-width: 860px; font-size: 16px !important; }
 /* fieldset 제목 살짝 크게 */
 .change-form fieldset.module > h2 { font-size: 15px; }
 </style>
