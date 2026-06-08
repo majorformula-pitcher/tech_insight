@@ -17,7 +17,11 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from dashboard import views as dashboard_views
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('dashboard/', include('dashboard.urls')),
+    # [개발 편의용 — 배포 끝나면 삭제] 자동 로그인 (DEBUG에서만 동작)
+    path('dev-login/', dashboard_views.dev_autologin),
 ]

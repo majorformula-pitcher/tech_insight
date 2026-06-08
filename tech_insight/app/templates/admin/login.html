@@ -1,0 +1,43 @@
+{% extends "admin/login.html" %}
+{% comment %}
+  로그인 화면 오버라이드.
+  [개발 편의용 — 배포 끝나면 이 파일 통째로 삭제] DEBUG 일 때만 '입장'(자동 로그인) 버튼 노출.
+{% endcomment %}
+{% load i18n %}
+
+{% block content %}
+{% if form.errors and not form.non_field_errors %}
+<p class="errornote">
+{% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}
+</p>
+{% endif %}
+
+{% if form.non_field_errors %}
+{% for error in form.non_field_errors %}
+<p class="errornote">{{ error }}</p>
+{% endfor %}
+{% endif %}
+
+<div id="content-main">
+<form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
+  <div class="form-row">
+    {{ form.username.errors }}
+    {{ form.username.label_tag }} {{ form.username }}
+  </div>
+  <div class="form-row">
+    {{ form.password.errors }}
+    {{ form.password.label_tag }} {{ form.password }}
+    <input type="hidden" name="next" value="{{ next }}">
+  </div>
+  <div class="submit-row" style="display:flex; gap:10px; align-items:center;">
+    <input type="submit" value="{% translate 'Log in' %}">
+    {% if is_debug %}
+    {# 개발 편의용 자동 로그인 — 배포 시 삭제 #}
+    <a href="/dev-login/"
+       style="background:#10b981;color:#fff;padding:9px 18px;border-radius:8px;
+              text-decoration:none;font-weight:700;">입장</a>
+    {% endif %}
+  </div>
+</form>
+</div>
+{% endblock %}

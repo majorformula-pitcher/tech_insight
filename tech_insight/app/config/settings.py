@@ -76,6 +76,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # [개발 편의용] 템플릿에서 {{ is_debug }} 로 DEBUG 여부 사용 (입장 버튼 노출용)
+                'dashboard.context_processors.debug_flag',
             ],
         },
     },
