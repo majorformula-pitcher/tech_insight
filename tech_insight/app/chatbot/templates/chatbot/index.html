@@ -88,6 +88,20 @@ function getCookie(name){
 }
 document.querySelectorAll('.ex').forEach(e => e.onclick = () => { $('q').value = e.textContent; });
 
+// 대화 이력 (후속 질문 맥락용)
+let history = [];
+
+function renderSources(sources){
+  if(!sources || !sources.length){ $('sources').style.display='none'; return; }
+  let h = '<h3>근거가 된 논문 ('+sources.length+'편)</h3>';
+  sources.forEach(s => {
+    h += '<div class="src"><div class="t">'+escapeHtml(s.title)+'</div>'+
+         '<div class="m">'+escapeHtml(s.published_date)+' · '+escapeHtml(s.affiliations||'')+'</div></div>';
+  });
+  $('sources').innerHTML = h;
+  $('sources').style.display = 'block';
+}
+
 $('send').onclick = async () => {
   const q = $('q').value.trim();
   if(!q){ $('q').focus(); return; }
@@ -95,25 +109,47 @@ $('send').onclick = async () => {
   $('loading').style.display = 'block';
   $('answer').style.display = 'none';
   $('sources').style.display = 'none';
+  $('answer').innerHTML = '<h3>분석 결과</h3><span id="ans-text"></span>';
+
+  let answerText = '';
   try{
-    const res = await fetch('/chat/ask/', {
+    const res = await fetch('/chat/ask-stream/', {
       method:'POST',
       headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
-      body: JSON.stringify({question:q})
+      body: JSON.stringify({question:q, history})
     });
-    const data = await res.json();
-    if(!res.ok){ throw new Error(data.error || '오류'); }
-    $('answer').innerHTML = '<h3>분석 결과</h3>' + escapeHtml(data.answer);
-    $('answer').style.display = 'block';
-    if(data.sources && data.sources.length){
-      let h = '<h3>근거가 된 논문 ('+data.sources.length+'편)</h3>';
-      data.sources.forEach(s => {
-        h += '<div class="src"><div class="t">'+escapeHtml(s.title)+'</div>'+
-             '<div class="m">'+escapeHtml(s.published_date)+' · '+escapeHtml(s.affiliations||'')+'</div></div>';
-      });
-      $('sources').innerHTML = h;
-      $('sources').style.display = 'block';
+    if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error||'오류'); }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let firstToken = true;
+    while(true){
+      const {done, value} = await reader.read();
+      if(done) break;
+      buf += decoder.decode(value, {stream:true});
+      // SSE 이벤트 단위(\n\n)로 파싱
+      let idx;
+      while((idx = buf.indexOf('\n\n')) >= 0){
+        const chunk = buf.slice(0, idx); buf = buf.slice(idx+2);
+        const ev = (chunk.match(/^event: (.*)$/m)||[])[1];
+        const dataLine = (chunk.match(/^data: (.*)$/m)||[])[1] || '{}';
+        let data; try{ data = JSON.parse(dataLine); }catch(e){ continue; }
+        if(ev === 'sources'){ renderSources(data); }
+        else if(ev === 'token'){
+          if(firstToken){ $('loading').style.display='none'; $('answer').style.display='block'; firstToken=false; }
+          answerText += data.t;
+          $('ans-text').textContent = answerText;
+          window.scrollTo(0, document.body.scrollHeight);
+        }
+        else if(ev === 'error'){ throw new Error(data.error||'LLM 오류'); }
+      }
     }
+    // 대화 이력에 저장
+    history.push({role:'user', content:q});
+    history.push({role:'assistant', content:answerText});
+    if(history.length > 8) history = history.slice(-8);
+    $('q').value = '';
   }catch(err){
     $('answer').innerHTML = '<h3 style="color:#dc2626;">오류</h3>'+escapeHtml(err.message);
     $('answer').style.display = 'block';
