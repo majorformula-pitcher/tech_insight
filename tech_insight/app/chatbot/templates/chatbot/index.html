@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>분석 챗봇 · Tech Insight</title>
+<style>
+  :root {
+    --bg:#f7f9ff; --panel:#fff; --border:#e3e8f5; --text:#2b2f3a; --muted:#6b7280;
+    --accent:#4f6ef7; --grad:linear-gradient(90deg,#5b8df5 0%,#8a7ff0 100%);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",-apple-system,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.6;}
+  header{background:var(--grad);padding:22px 32px;box-shadow:0 2px 10px rgba(79,110,247,.18);
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+  header h1{margin:0;color:#fff;font-size:22px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.12);}
+  header .prov{color:#fff;font-size:12px;background:rgba(255,255,255,.22);padding:5px 12px;border-radius:999px;}
+  header a{color:#fff;text-decoration:none;font-weight:600;font-size:13px;
+    background:rgba(255,255,255,.18);padding:7px 14px;border-radius:8px;margin-left:8px;}
+  .wrap{max-width:900px;margin:0 auto;padding:24px 20px 60px;}
+  .intro{color:var(--muted);font-size:14px;margin-bottom:16px;}
+  .ask-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:16px;box-shadow:0 1px 8px rgba(80,100,180,.06);margin-bottom:20px;}
+  textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:14px;
+    font-size:15px;font-family:inherit;line-height:1.6;resize:vertical;min-height:90px;}
+  textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,110,247,.12);}
+  .row{display:flex;gap:10px;align-items:center;margin-top:10px;}
+  button{background:var(--accent);color:#fff;border:none;border-radius:10px;
+    padding:11px 22px;font-size:15px;font-weight:700;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  .hint{color:var(--muted);font-size:12px;}
+  .answer{background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:20px 22px;box-shadow:0 1px 8px rgba(80,100,180,.06);margin-bottom:16px;
+    white-space:pre-wrap;font-size:15.5px;display:none;}
+  .answer h3{margin:0 0 10px;font-size:14px;color:var(--accent);}
+  .sources{background:#f4f7ff;border:1px solid var(--border);border-radius:14px;
+    padding:16px 18px;display:none;}
+  .sources h3{margin:0 0 10px;font-size:13px;color:var(--muted);}
+  .src{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .src:last-child{border-bottom:none;}
+  .src .t{font-weight:600;}
+  .src .m{color:var(--muted);font-size:12px;}
+  .loading{display:none;color:var(--accent);font-weight:600;padding:10px 0;}
+  .examples{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;}
+  .ex{background:#eef2ff;color:var(--accent);border-radius:999px;padding:5px 12px;
+    font-size:12px;cursor:pointer;border:1px solid #dde4ff;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖 기술 트렌드 분석 챗봇</h1>
+  <div>
+    <span class="prov">엔진: {{ provider }}</span>
+    <a href="/dashboard/">📊 대시보드</a>
+    <a href="/admin/">관리</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="intro">
+    뉴스나 질문을 입력하면, 정보과학회지 213편 논문 요약을 근거로 파급효과·인사이트를 분석합니다.
+  </div>
+
+  <div class="ask-box">
+    <textarea id="q" placeholder="예: 삼성전자가 AGI용 고성능 메모리 양산을 발표했다. 우리 산업에 어떤 파급효과가 있을까?"></textarea>
+    <div class="examples">
+      <span class="ex">AGI 반도체 양산이 미치는 영향은?</span>
+      <span class="ex">최근 LLM 에이전트 연구 동향은?</span>
+      <span class="ex">5G/네트워크 연구는 왜 줄어드나?</span>
+    </div>
+    <div class="row">
+      <button id="send">분석 요청</button>
+      <span class="hint">근거 논문을 찾아 분석합니다. (로컬 엔진은 답변에 수 초~수십 초 소요)</span>
+    </div>
+  </div>
+
+  <div class="loading" id="loading">⏳ 관련 논문을 찾고 분석하는 중…</div>
+  <div class="answer" id="answer"></div>
+  <div class="sources" id="sources"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+function getCookie(name){
+  const v = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
+  return v ? v.pop() : '';
+}
+document.querySelectorAll('.ex').forEach(e => e.onclick = () => { $('q').value = e.textContent; });
+
+$('send').onclick = async () => {
+  const q = $('q').value.trim();
+  if(!q){ $('q').focus(); return; }
+  $('send').disabled = true;
+  $('loading').style.display = 'block';
+  $('answer').style.display = 'none';
+  $('sources').style.display = 'none';
+  try{
+    const res = await fetch('/chat/ask/', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      body: JSON.stringify({question:q})
+    });
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.error || '오류'); }
+    $('answer').innerHTML = '<h3>분석 결과</h3>' + escapeHtml(data.answer);
+    $('answer').style.display = 'block';
+    if(data.sources && data.sources.length){
+      let h = '<h3>근거가 된 논문 ('+data.sources.length+'편)</h3>';
+      data.sources.forEach(s => {
+        h += '<div class="src"><div class="t">'+escapeHtml(s.title)+'</div>'+
+             '<div class="m">'+escapeHtml(s.published_date)+' · '+escapeHtml(s.affiliations||'')+'</div></div>';
+      });
+      $('sources').innerHTML = h;
+      $('sources').style.display = 'block';
+    }
+  }catch(err){
+    $('answer').innerHTML = '<h3 style="color:#dc2626;">오류</h3>'+escapeHtml(err.message);
+    $('answer').style.display = 'block';
+  }finally{
+    $('send').disabled = false;
+    $('loading').style.display = 'none';
+  }
+};
+function escapeHtml(s){
+  return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+</script>
+</body>
+</html>
