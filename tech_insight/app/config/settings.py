@@ -39,11 +39,18 @@ ALLOWED_HOSTS = [
 ]
 
 # HTTPS 도메인(예: Tailscale Funnel)에서 폼 제출(로그인/챗봇)이 되도록 CSRF 신뢰 출처 등록.
-# localhost/127.0.0.1/IP 가 아닌 호스트는 https origin 으로 추가한다.
-CSRF_TRUSTED_ORIGINS = [
-    f"https://{h}" for h in ALLOWED_HOSTS
+# Django는 Origin 헤더를 포트까지 정확히 비교하므로, 포트 없는 버전과 :8443(Funnel) 둘 다 등록.
+_csrf_hosts = [
+    h for h in ALLOWED_HOSTS
     if h not in ("localhost", "127.0.0.1") and not h.replace(".", "").isdigit()
 ]
+CSRF_TRUSTED_ORIGINS = []
+for h in _csrf_hosts:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{h}")
+    CSRF_TRUSTED_ORIGINS.append(f"https://{h}:8443")   # Tailscale Funnel 포트
+# 환경변수로 추가 지정 가능 (쉼표 구분, 전체 origin 형태)
+_extra = os.environ.get("DJANGO_CSRF_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra.split(",") if o.strip()]
 
 
 # Application definition
