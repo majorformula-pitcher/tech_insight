@@ -6,6 +6,7 @@ import json
 
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from insight.llm import chat, stream, current_provider
@@ -19,6 +20,7 @@ SYSTEM_PROMPT = (
 )
 
 
+@ensure_csrf_cookie
 def index(request):
     """챗봇 페이지. ?news=<id> 가 있으면 해당 뉴스를 미리 질문칸에 채운다."""
     prefill = ""

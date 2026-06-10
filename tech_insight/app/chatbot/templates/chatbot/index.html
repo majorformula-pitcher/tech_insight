@@ -118,7 +118,10 @@ $('send').onclick = async () => {
       headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
       body: JSON.stringify({question:q, history})
     });
-    if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error||'오류'); }
+    if(!res.ok){
+      const d=await res.json().catch(()=>({}));
+      throw new Error(d.error || ('요청 실패 (HTTP '+res.status+'). 서버를 start.bat으로 켰는지, Ollama가 실행 중인지 확인하세요.'));
+    }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
