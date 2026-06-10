@@ -38,6 +38,13 @@ ALLOWED_HOSTS = [
     h.strip() for h in os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if h.strip()
 ]
 
+# HTTPS 도메인(예: Tailscale Funnel)에서 폼 제출(로그인/챗봇)이 되도록 CSRF 신뢰 출처 등록.
+# localhost/127.0.0.1/IP 가 아닌 호스트는 https origin 으로 추가한다.
+CSRF_TRUSTED_ORIGINS = [
+    f"https://{h}" for h in ALLOWED_HOSTS
+    if h not in ("localhost", "127.0.0.1") and not h.replace(".", "").isdigit()
+]
+
 
 # Application definition
 
