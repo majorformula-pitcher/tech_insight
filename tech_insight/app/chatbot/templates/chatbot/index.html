@@ -34,6 +34,9 @@
     padding:20px 22px;box-shadow:0 1px 8px rgba(80,100,180,.06);margin-bottom:16px;
     white-space:pre-wrap;font-size:15.5px;display:none;}
   .answer h3{margin:0 0 10px;font-size:14px;color:var(--accent);}
+  .q-echo{background:#eef2ff;border-left:3px solid var(--accent);border-radius:8px;
+    padding:10px 14px;margin-bottom:16px;font-size:13.5px;color:#3a4256;
+    white-space:pre-wrap;max-height:120px;overflow:auto;}
   .sources{background:#f4f7ff;border:1px solid var(--border);border-radius:14px;
     padding:16px 18px;display:none;}
   .sources h3{margin:0 0 10px;font-size:13px;color:var(--muted);}
@@ -110,7 +113,8 @@ $('send').onclick = async () => {
   $('loading').style.display = 'block';
   $('answer').style.display = 'none';
   $('sources').style.display = 'none';
-  $('answer').innerHTML = '<h3>분석 결과</h3><span id="ans-text"></span>';
+  $('answer').innerHTML = '<div class="q-echo">' + escapeHtml(q) + '</div>' +
+                          '<h3>분석 결과</h3><span id="ans-text"></span>';
 
   let answerText = '';
   try{
@@ -153,7 +157,7 @@ $('send').onclick = async () => {
     history.push({role:'user', content:q});
     history.push({role:'assistant', content:answerText});
     if(history.length > 8) history = history.slice(-8);
-    $('q').value = '';
+    // 입력칸은 그대로 유지 (방금 한 질문을 계속 볼 수 있게)
   }catch(err){
     $('answer').innerHTML = '<h3 style="color:#dc2626;">오류</h3>'+escapeHtml(err.message);
     $('answer').style.display = 'block';
