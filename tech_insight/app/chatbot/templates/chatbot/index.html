@@ -48,6 +48,7 @@
 </style>
 </head>
 <body>
+<input type="hidden" id="csrf-token" value="{{ csrf_token }}">
 <header>
   <h1>🤖 기술 트렌드 분석 챗봇</h1>
   <div>
@@ -115,7 +116,7 @@ $('send').onclick = async () => {
   try{
     const res = await fetch('/chat/ask-stream/', {
       method:'POST',
-      headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      headers:{'Content-Type':'application/json','X-CSRFToken':document.getElementById('csrf-token').value},
       body: JSON.stringify({question:q, history})
     });
     if(!res.ok){
