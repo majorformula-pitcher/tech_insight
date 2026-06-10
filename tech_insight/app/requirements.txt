@@ -15,3 +15,8 @@ whitenoise==6.8.2
 
 # 엑셀(.xlsx) 읽기 — Cowork 추출 결과 적재용
 openpyxl==3.1.5
+
+# 뉴스 자동 수집 (RSS 파싱 + 본문 크롤링)
+feedparser==6.0.12
+requests==2.34.2
+beautifulsoup4==4.15.0
