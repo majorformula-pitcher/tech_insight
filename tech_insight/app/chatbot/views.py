@@ -20,8 +20,51 @@ SYSTEM_PROMPT = (
 
 
 def index(request):
-    """챗봇 페이지."""
-    return render(request, "chatbot/index.html", {"provider": current_provider()})
+    """챗봇 페이지. ?news=<id> 가 있으면 해당 뉴스를 미리 질문칸에 채운다."""
+    prefill = ""
+    news_id = request.GET.get("news")
+    if news_id:
+        from insight.models import Document
+        d = Document.objects.filter(id=news_id, source__name="뉴스").first()
+        if d:
+            body = d.summary or d.raw_text[:500]
+            prefill = f"[뉴스] {d.title}\n{body}\n\n이 뉴스의 파급효과를 우리 논문 근거로 분석해줘."
+    return render(request, "chatbot/index.html", {
+        "provider": current_provider(), "prefill": prefill,
+    })
+
+
+def news(request):
+    """뉴스 카드 목록 페이지 (카테고리 필터·검색)."""
+    from insight.models import Document
+
+    qs = Document.objects.filter(source__name="뉴스").exclude(summary="")
+    category = request.GET.get("cat", "").strip()
+    query = request.GET.get("q", "").strip()
+    if category and category != "All":
+        qs = qs.filter(category=category)
+    if query:
+        qs = qs.filter(title__icontains=query)
+    qs = qs.order_by("-published_date", "-created_at")[:60]
+
+    items = [{
+        "id": d.id,
+        "title": d.title,
+        "summary_lines": [s for s in d.summary.split("\n") if s.strip()],
+        "category": d.category or "기타",
+        "image": d.image,
+        "source": d.authors,
+        "url": d.url,
+        "date": d.published_date.strftime("%Y-%m-%d") if d.published_date else "",
+    } for d in qs]
+
+    # 카테고리별 개수
+    cats = ["All", "AI", "Robot", "Security", "Data", "IT", "기타"]
+    return render(request, "chatbot/news.html", {
+        "items": items, "cats": cats,
+        "active_cat": category or "All", "query": query,
+        "total": len(items),
+    })
 
 
 def _build_prompt(question, history=None):

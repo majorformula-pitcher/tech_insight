@@ -17,6 +17,7 @@
   .dash-card .ico { font-size: 22px; }
   .dash-card .desc { font-weight: 400; font-size: 12px; opacity: 0.9; margin-top: 2px; }
   .chat-card { background: linear-gradient(90deg, #10b981 0%, #4f6ef7 100%); }
+  .news-card { background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%); }
 </style>
 {% endblock %}
 
@@ -43,6 +44,14 @@
       <span class="ico">🤖</span>
       <span>Insight Chat
         <div class="desc">뉴스·질문을 입력하면 논문 근거로 파급효과 분석</div>
+      </span>
+    </a>
+  </div>
+  <div class="dash-card news-card module">
+    <a href="/chat/news/">
+      <span class="ico">📰</span>
+      <span>Tech News
+        <div class="desc">RSS 자동 수집 뉴스 · 카테고리별 카드 + 분석 연결</div>
       </span>
     </a>
   </div>

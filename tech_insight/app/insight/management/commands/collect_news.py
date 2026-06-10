@@ -12,15 +12,37 @@
 """
 from django.core.management.base import BaseCommand
 
-from insight.collectors.news import RSS_FEEDS, fetch_feed, extract_body
+import json
+
+from insight.collectors.news import RSS_FEEDS, fetch_feed, extract_article
 from insight.llm import chat
 from insight.models import Source, Document
 
+CATEGORIES = ["AI", "Robot", "Security", "Data", "IT", "기타"]
+
 SUMMARY_SYSTEM = (
-    "너는 뉴스 요약 전문가다. 한국어로만, 핵심만 4문장으로 요약한다. "
-    "각 문장은 '~입니다/~했습니다' 평어체로 끝내고, 숫자·불릿 기호는 붙이지 마라. "
-    "구체적 수치·고유명사·핵심 결과를 포함하라."
+    "너는 뉴스 요약 전문가다. 한국어로만 답하고, 반드시 아래 JSON 형식으로만 출력한다.\n"
+    '{"category": "AI/Robot/Security/Data/IT/기타 중 하나", '
+    '"summary": ["문장1", "문장2", "문장3", "문장4"]}\n'
+    "summary는 4문장, 각 문장은 '~입니다/~했습니다' 평어체, 숫자·불릿 금지, "
+    "구체적 수치·고유명사·핵심 결과 포함."
 )
+
+
+def _parse_summary(raw: str) -> tuple[str, str]:
+    """LLM 응답(JSON)에서 (category, summary텍스트) 추출. 실패 시 (기타, 원문)."""
+    try:
+        s = raw[raw.index("{"):raw.rindex("}") + 1]
+        data = json.loads(s)
+        cat = data.get("category", "기타")
+        if cat not in CATEGORIES:
+            cat = next((c for c in CATEGORIES if c.lower() in cat.lower()), "기타")
+        summ = data.get("summary", "")
+        if isinstance(summ, list):
+            summ = "\n".join(str(x).strip() for x in summ if str(x).strip())
+        return cat, summ
+    except (ValueError, json.JSONDecodeError):
+        return "기타", raw.strip()
 
 
 class Command(BaseCommand):
@@ -55,23 +77,24 @@ class Command(BaseCommand):
                 if Document.objects.filter(url=item["url"]).exists():
                     n_dup += 1
                     continue
-                # 본문 크롤링
-                body = extract_body(item["url"])
+                # 본문 + 이미지 크롤링
+                art = extract_article(item["url"])
+                body, image = art["body"], art["image"]
                 if not body or len(body) < 80:
-                    # 본문 못 가져오면 RSS 요약이라도
                     body = item.get("rss_summary", "")
                     if not body:
                         n_skip += 1
                         continue
 
-                summary = ""
+                summary, category = "", ""
                 if do_summary:
                     try:
-                        summary = chat(
+                        raw = chat(
                             SUMMARY_SYSTEM,
                             f"제목: {item['title']}\n\n본문:\n{body[:4000]}",
-                            max_tokens=400,
+                            max_tokens=500,
                         )
+                        category, summary = _parse_summary(raw)
                     except Exception as e:  # noqa: BLE001
                         n_err += 1
                         self.stderr.write(self.style.WARNING(f"요약 실패: {item['title'][:30]} :: {e}"))
@@ -82,6 +105,8 @@ class Command(BaseCommand):
                     published_date=item["published_date"],
                     raw_text=body,
                     summary=summary,
+                    category=category,
+                    image=image[:1000] if image else "",
                     url=item["url"],
                     authors=item["source_name"],   # 출처 매체명을 저자 칸에 기록
                     status=(Document.Status.ANALYZED if summary

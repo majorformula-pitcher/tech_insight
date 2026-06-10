@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>뉴스 · Tech Insight</title>
+<style>
+  :root{--bg:#f7f9ff;--panel:#fff;--border:#e3e8f5;--text:#2b2f3a;--muted:#6b7280;
+    --accent:#4f6ef7;--grad:linear-gradient(90deg,#5b8df5 0%,#8a7ff0 100%);}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",-apple-system,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.6;}
+  header{background:var(--grad);padding:20px 32px;box-shadow:0 2px 10px rgba(79,110,247,.18);
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+  header h1{margin:0;color:#fff;font-size:22px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.12);}
+  header a{color:#fff;text-decoration:none;font-weight:600;font-size:13px;
+    background:rgba(255,255,255,.18);padding:7px 14px;border-radius:8px;margin-left:8px;}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px;}
+  .toolbar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:18px;}
+  .cats{display:flex;gap:6px;flex-wrap:wrap;}
+  .cat{padding:7px 16px;border-radius:999px;border:1px solid var(--border);background:#fff;
+    color:var(--muted);text-decoration:none;font-size:13px;font-weight:600;}
+  .cat.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .search{margin-left:auto;display:flex;gap:6px;}
+  .search input{border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:14px;width:220px;}
+  .search button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-weight:600;}
+  .count{color:var(--muted);font-size:13px;margin-bottom:12px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;
+    box-shadow:0 1px 8px rgba(80,100,180,.06);display:flex;flex-direction:column;}
+  .card .thumb{width:100%;height:170px;object-fit:cover;background:#eef2ff;}
+  .card .body{padding:16px 18px;display:flex;flex-direction:column;flex:1;}
+  .badge{display:inline-block;align-self:flex-start;font-size:11px;font-weight:700;
+    background:#eef2ff;color:var(--accent);padding:3px 10px;border-radius:999px;margin-bottom:8px;}
+  .card h3{margin:0 0 10px;font-size:16px;line-height:1.4;}
+  .card ul{margin:0 0 12px;padding-left:18px;font-size:13px;color:#3a4256;flex:1;}
+  .card ul li{margin-bottom:5px;}
+  .meta{font-size:11px;color:var(--muted);margin-bottom:10px;}
+  .actions{display:flex;gap:8px;}
+  .actions a{flex:1;text-align:center;text-decoration:none;font-size:13px;font-weight:600;
+    padding:8px;border-radius:8px;}
+  .a-analyze{background:var(--grad);color:#fff;}
+  .a-orig{background:#f1f5f9;color:var(--muted);}
+  .empty{text-align:center;color:var(--muted);padding:60px;}
+</style>
+</head>
+<body>
+<header>
+  <h1>📰 기술 뉴스</h1>
+  <div>
+    <a href="/chat/">🤖 챗봇</a>
+    <a href="/dashboard/">📊 대시보드</a>
+    <a href="/admin/">관리</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <form class="toolbar" method="get">
+    <div class="cats">
+      {% for c in cats %}
+        <a class="cat {% if c == active_cat %}active{% endif %}"
+           href="?cat={{ c }}{% if query %}&q={{ query }}{% endif %}">{{ c }}</a>
+      {% endfor %}
+    </div>
+    <div class="search">
+      <input type="text" name="q" value="{{ query }}" placeholder="제목 검색...">
+      {% if active_cat != 'All' %}<input type="hidden" name="cat" value="{{ active_cat }}">{% endif %}
+      <button type="submit">검색</button>
+    </div>
+  </form>
+
+  <div class="count">{{ total }}건</div>
+
+  {% if items %}
+  <div class="grid">
+    {% for it in items %}
+    <div class="card">
+      {% if it.image %}<img class="thumb" src="{{ it.image }}" alt="" loading="lazy"
+        onerror="this.style.display='none'">{% endif %}
+      <div class="body">
+        <span class="badge">{{ it.category }}</span>
+        <h3>{{ it.title }}</h3>
+        <ul>
+          {% for line in it.summary_lines %}<li>{{ line }}</li>{% endfor %}
+        </ul>
+        <div class="meta">{{ it.source }} · {{ it.date }}</div>
+        <div class="actions">
+          <a class="a-analyze" href="/chat/?news={{ it.id }}">⚡ 파급효과 분석</a>
+          {% if it.url %}<a class="a-orig" href="{{ it.url }}" target="_blank">원문</a>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">수집된 뉴스가 없습니다.<br>관리자에서 <code>collect_news</code> 명령을 실행하세요.</div>
+  {% endif %}
+</div>
+</body>
+</html>

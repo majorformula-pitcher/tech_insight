@@ -8,4 +8,5 @@ urlpatterns = [
     path("", views.index, name="index"),
     path("ask/", views.ask, name="ask"),
     path("ask-stream/", views.ask_stream, name="ask_stream"),
+    path("news/", views.news, name="news"),
 ]

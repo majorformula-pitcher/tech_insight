@@ -78,6 +78,11 @@ class Document(models.Model):
     url = models.URLField("원본 URL", blank=True, max_length=1000)
     file_path = models.CharField("로컬 파일 경로", max_length=1000, blank=True)
 
+    # 뉴스용 보조 필드 (논문엔 비어있음)
+    category = models.CharField("카테고리", max_length=30, blank=True,
+                                help_text="뉴스 분류: AI/Robot/Security/Data/IT 등")
+    image = models.URLField("썸네일 이미지", blank=True, max_length=1000)
+
     status = models.CharField(
         "상태", max_length=12, choices=Status.choices, default=Status.COLLECTED
     )

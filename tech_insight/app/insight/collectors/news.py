@@ -93,14 +93,28 @@ def fetch_feed(name: str, url: str, limit: int = 10) -> list[dict]:
     return items
 
 
-def extract_body(url: str, timeout: int = 15) -> str:
-    """기사 URL에서 본문 텍스트 추출 (JSON-LD 우선, 셀렉터 폴백)."""
+def extract_article(url: str, timeout: int = 15) -> dict:
+    """기사 URL에서 본문 + 대표 이미지를 함께 추출. {'body':..., 'image':...}"""
     try:
         resp = requests.get(url, headers=HEADERS, timeout=timeout)
         resp.raise_for_status()
     except Exception:  # noqa: BLE001
-        return ""
+        return {"body": "", "image": ""}
     soup = BeautifulSoup(resp.text, "html.parser")
+    # 대표 이미지 (og:image)
+    image = ""
+    og_img = soup.find("meta", property="og:image")
+    if og_img and og_img.get("content"):
+        image = og_img["content"].strip()
+    return {"body": _extract_body_from_soup(soup), "image": image}
+
+
+def extract_body(url: str, timeout: int = 15) -> str:
+    """기사 URL에서 본문 텍스트만 추출 (하위호환)."""
+    return extract_article(url, timeout)["body"]
+
+
+def _extract_body_from_soup(soup) -> str:
 
     # 1) JSON-LD articleBody (차단 우회에 강함)
     for tag in soup.find_all("script", type="application/ld+json"):
