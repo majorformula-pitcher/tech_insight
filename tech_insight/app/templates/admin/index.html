@@ -16,6 +16,7 @@
   .dash-card a:hover { background: rgba(255,255,255,0.08); }
   .dash-card .ico { font-size: 22px; }
   .dash-card .desc { font-weight: 400; font-size: 12px; opacity: 0.9; margin-top: 2px; }
+  .chat-card { background: linear-gradient(90deg, #10b981 0%, #4f6ef7 100%); }
 </style>
 {% endblock %}
 
@@ -28,12 +29,20 @@
 
 {% block content %}
 <div id="content-main" class="app-list">
-  {# 프로젝트 핵심 → 인사이트 대시보드 카드를 맨 위에 배치 #}
+  {# 프로젝트 핵심 → 대시보드 + 챗봇 카드를 맨 위에 배치 #}
   <div class="dash-card module">
     <a href="/dashboard/">
       <span class="ico">📊</span>
       <span>Insight Dashboard
         <div class="desc">정보과학회지 트렌드·키워드·시차 분석 한눈에 보기</div>
+      </span>
+    </a>
+  </div>
+  <div class="dash-card chat-card module">
+    <a href="/chat/">
+      <span class="ico">🤖</span>
+      <span>Insight Chat
+        <div class="desc">뉴스·질문을 입력하면 논문 근거로 파급효과 분석</div>
       </span>
     </a>
   </div>
@@ -89,6 +98,16 @@
         {% endfor %}
       </ul>
     {% endif %}
+  </div>
+
+  {# 최근 활동 아래 — Insight Chat 바로가기 #}
+  <div class="dash-card chat-card module" style="margin-top:16px;">
+    <a href="/chat/">
+      <span class="ico">🤖</span>
+      <span>Insight Chat
+        <div class="desc">분석 챗봇 열기</div>
+      </span>
+    </a>
   </div>
 </div>
 {% endblock %}
