@@ -36,6 +36,7 @@ def index(request):
     })
 
 
+@ensure_csrf_cookie
 def news(request):
     """뉴스 카드 목록 페이지 (카테고리 필터·검색)."""
     from insight.models import Document
