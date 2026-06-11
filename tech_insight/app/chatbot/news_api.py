@@ -76,17 +76,42 @@ def add_news(request):
     if Document.objects.filter(url=url).exists():
         return JsonResponse({"error": "이미 추가된 뉴스입니다.", "duplicate": True}, status=409)
 
-    art = extract_article(url)
-    body, image = art["body"], art["image"]
-    if not body or len(body) < 80:
-        return JsonResponse({"error": "본문을 추출할 수 없습니다."}, status=422)
+    # 수동 모드: 사용자가 제목/요약/카테고리를 직접 입력 (크롤링 차단 사이트용)
+    manual = payload.get("manual")
+    if manual:
+        m_title = (payload.get("title") or "").strip()
+        m_summary = (payload.get("summary") or "").strip()
+        m_cat = (payload.get("category") or "기타").strip()
+        if not m_title:
+            return JsonResponse({"error": "제목은 필수입니다."}, status=400)
+        body, image = m_summary, ""
+        category = m_cat if m_cat in CATEGORIES else "기타"
+        # 요약을 안 줬으면 EXAONE으로 본문(=입력 요약)에서 정리, 줬으면 그대로
+        summary = m_summary
+        if m_summary and len(m_summary) > 150:
+            try:
+                raw = chat(SUMMARY_SYSTEM, f"제목: {m_title}\n\n본문:\n{m_summary[:4000]}", max_tokens=500)
+                category, summary = _parse_summary(raw)
+            except Exception:  # noqa: BLE001
+                summary = m_summary
+        title = m_title
+    else:
+        art = extract_article(url)
+        body, image = art["body"], art["image"]
+        if not body or len(body) < 80:
+            # 크롤링 실패 → 프론트에 수동 입력 모드로 전환하라고 신호
+            return JsonResponse({
+                "error": "본문을 추출할 수 없습니다. (사이트 차단)",
+                "needManual": True,
+                "title": title,
+            }, status=422)
 
-    category, summary = "", ""
-    try:
-        raw = chat(SUMMARY_SYSTEM, f"제목: {title}\n\n본문:\n{body[:4000]}", max_tokens=500)
-        category, summary = _parse_summary(raw)
-    except Exception as e:  # noqa: BLE001
-        return JsonResponse({"error": f"요약 실패: {e}"}, status=502)
+        category, summary = "", ""
+        try:
+            raw = chat(SUMMARY_SYSTEM, f"제목: {title}\n\n본문:\n{body[:4000]}", max_tokens=500)
+            category, summary = _parse_summary(raw)
+        except Exception as e:  # noqa: BLE001
+            return JsonResponse({"error": f"요약 실패: {e}"}, status=502)
 
     # pubDate(ISO/문자열)에서 날짜 부분만 (YYYY-MM-DD)
     pub = (payload.get("pubDate") or "")[:10]

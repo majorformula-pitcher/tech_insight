@@ -18,7 +18,7 @@
   .layout{display:flex;gap:0;height:calc(100vh - 56px);}
 
   /* 좌측 Discovery 패널 */
-  .side{width:300px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
+  .side{width:380px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);
     display:flex;flex-direction:column;overflow:hidden;}
   .disc-head{display:flex;align-items:center;gap:8px;padding:16px 18px 10px;
     font-weight:700;color:var(--accent);font-size:15px;}
@@ -43,6 +43,22 @@
 
   /* 우측 카드 영역 */
   .main{flex:1;overflow-y:auto;padding:18px 20px;}
+  .url-box{display:flex;gap:10px;margin-bottom:14px;}
+  .url-box input{flex:1;border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:14px;}
+  .url-box button{background:var(--grad);color:#fff;border:none;border-radius:10px;padding:0 22px;
+    font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .url-box button:disabled{opacity:.5;cursor:default;}
+  .manual-box{background:var(--panel);border:1px solid #fbbf24;border-radius:12px;padding:16px;margin-bottom:14px;}
+  .manual-warn{font-size:13px;color:#d97706;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .manual-warn button{margin-left:auto;background:#fff;border:1px solid var(--accent);color:var(--accent);
+    border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;}
+  .manual-box input,.manual-box textarea{width:100%;border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;font-size:14px;margin-bottom:8px;font-family:inherit;}
+  .manual-box textarea{min-height:90px;resize:vertical;}
+  .manual-row{display:flex;gap:8px;}
+  .manual-row select{flex:1;border:1px solid var(--border);border-radius:8px;padding:10px;font-size:14px;}
+  .manual-row button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 20px;
+    font-weight:700;cursor:pointer;}
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
   .cats{display:flex;gap:5px;flex-wrap:wrap;}
   .cat{padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:#fff;
@@ -95,6 +111,27 @@
 
   <!-- 우측: 추가된 카드 -->
   <main class="main">
+    <!-- URL 직접 추가 -->
+    <div class="url-box">
+      <input type="text" id="url-input" placeholder="뉴스 URL을 입력하세요...">
+      <button id="url-add">+ 뉴스 추가</button>
+    </div>
+    <!-- 수동 입력 폼 (크롤링 차단 시) -->
+    <div class="manual-box" id="manual-box" style="display:none;">
+      <div class="manual-warn">⚠️ <span id="manual-msg">크롤링이 막힌 사이트입니다. 직접 입력해주세요.</span>
+        <button id="manual-cancel">입력 취소</button></div>
+      <input type="text" id="m-title" placeholder="뉴스 제목을 입력하세요 (필수)">
+      <textarea id="m-summary" placeholder="뉴스 요약 또는 본문을 입력하세요 (선택)"></textarea>
+      <div class="manual-row">
+        <select id="m-category">
+          <option value="">카테고리 선택 (필수)</option>
+          <option>AI</option><option>Robot</option><option>Security</option>
+          <option>Data</option><option>IT</option><option>기타</option>
+        </select>
+        <button id="m-submit">수동 등록 완료</button>
+      </div>
+    </div>
+
     <form class="toolbar" method="get" id="filter-form">
       <div class="cats">
         {% for c in cats %}
@@ -103,8 +140,7 @@
         {% endfor %}
       </div>
       <div class="search">
-        <input type="text" name="q" value="{{ query }}" placeholder="제목 검색...">
-        {% if active_cat != 'All' %}<input type="hidden" name="cat" value="{{ active_cat }}">{% endif %}
+        <input type="text" id="search-input" value="{{ query }}" placeholder="제목으로 검색...">
       </div>
     </form>
     <div class="count" id="count">{{ total }}건</div>
@@ -211,6 +247,71 @@ function prependCard(c){
 }
 
 function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+// URL 직접 추가
+let pendingUrl='';
+$('url-add').onclick=async ()=>{
+  const url=$('url-input').value.trim();
+  if(!url.startsWith('http')){toast('올바른 URL을 입력하세요.');return;}
+  pendingUrl=url;
+  $('url-add').disabled=true; $('url-add').textContent='처리 중…';
+  const ok=await tryAdd({url, title:'', source_name:''});
+  $('url-add').disabled=false; $('url-add').textContent='+ 뉴스 추가';
+  if(ok) $('url-input').value='';
+};
+
+// 추가 시도 (실패하면 수동 폼 전환). 성공 true.
+async function tryAdd(data){
+  const r=await fetch('/chat/api/add-news/',{
+    method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':TOKEN},
+    body:JSON.stringify(data)
+  });
+  const d=await r.json();
+  if(r.ok){ prependCard(d.card); toast('뉴스 카드가 추가되었습니다.'); return true; }
+  if(d.needManual){
+    // 크롤링 차단 → 수동 입력 폼
+    pendingUrl=data.url;
+    $('manual-msg').textContent=d.error||'직접 입력이 필요합니다.';
+    $('m-title').value=d.title||data.title||'';
+    $('m-summary').value=''; $('m-category').value='';
+    $('manual-box').style.display='block';
+    $('manual-box').scrollIntoView({behavior:'smooth'});
+    return false;
+  }
+  toast('실패: '+(d.error||'오류')); return false;
+}
+
+// 수동 등록
+$('manual-cancel').onclick=()=>{$('manual-box').style.display='none';};
+$('m-submit').onclick=async ()=>{
+  const title=$('m-title').value.trim();
+  const cat=$('m-category').value;
+  if(!title){toast('제목은 필수입니다.');return;}
+  if(!cat){toast('카테고리를 선택하세요.');return;}
+  $('m-submit').disabled=true; $('m-submit').textContent='등록 중…';
+  const r=await fetch('/chat/api/add-news/',{
+    method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':TOKEN},
+    body:JSON.stringify({manual:true, url:pendingUrl, title, summary:$('m-summary').value.trim(), category:cat})
+  });
+  const d=await r.json();
+  $('m-submit').disabled=false; $('m-submit').textContent='수동 등록 완료';
+  if(r.ok){ prependCard(d.card); $('manual-box').style.display='none'; $('url-input').value=''; toast('수동 등록 완료.'); }
+  else toast('실패: '+(d.error||'오류'));
+};
+
+// 제목 실시간 검색 (생성된 카드 필터)
+$('search-input').addEventListener('input', (e)=>{
+  const q=e.target.value.trim().toLowerCase();
+  let shown=0;
+  document.querySelectorAll('#grid .card').forEach(card=>{
+    const t=card.querySelector('h3').textContent.toLowerCase();
+    const ok=!q || t.includes(q);
+    card.style.display=ok?'':'none';
+    if(ok) shown++;
+  });
+  $('count').textContent=shown+'건';
+});
+
 loadFeeds();
 </script>
 </body>
