@@ -58,7 +58,8 @@ def news(request):
         "image": d.image,
         "source": d.authors,
         "url": d.url,
-        "date": d.published_date.strftime("%Y-%m-%d") if d.published_date else "",
+        "date": (f"{d.published_date.year}. {d.published_date.month}. {d.published_date.day}."
+                 if d.published_date else ""),
     } for d in qs]
 
     # 카테고리별 개수
