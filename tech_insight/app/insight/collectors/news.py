@@ -15,22 +15,35 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
-# 수집할 RSS 소스 (국내외 기술/AI 뉴스)
+# 수집할 RSS 소스 (국내외 기술/AI 뉴스) — 전체 27개
 RSS_FEEDS = [
     ("로봇신문", "https://www.irobotnews.com/rss/allArticle.xml"),
     ("전자신문-AI", "http://rss.etnews.com/04046.xml"),
+    ("전자신문-전자", "http://rss.etnews.com/06061.xml"),
     ("The AI", "https://www.newstheai.com/rss/allArticle.xml"),
     ("디지털투데이", "https://www.digitaltoday.co.kr/rss/allArticle.xml"),
+    ("한국경제-IT", "https://www.hankyung.com/feed/it"),
+    ("Bloter", "https://www.bloter.net/rss/allArticle.xml"),
     ("AI타임스", "https://www.aitimes.com/rss/allArticle.xml"),
     ("ZDNet Korea", "https://zdnet.co.kr/feed"),
-    ("Bloter", "https://www.bloter.net/rss/allArticle.xml"),
+    ("더밀크", "https://news.google.com/rss/search?q=when:24h+site:themiilk.com&hl=ko&gl=KR&ceid=KR:ko"),
     ("TechCrunch", "https://techcrunch.com/category/artificial-intelligence/feed/"),
+    ("CNBC", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910"),
     ("The Verge", "https://www.theverge.com/rss/index.xml"),
+    ("Wired", "https://www.wired.com/feed/category/business/latest/rss"),
+    ("CNET", "https://www.cnet.com/rss/all/"),
+    ("DigitalTrends", "https://www.digitaltrends.com/feed/"),
+    ("The Guardian", "https://www.theguardian.com/uk/technology/rss"),
     ("VentureBeat", "https://venturebeat.com/feed"),
+    ("Techmeme", "https://www.techmeme.com/feed.xml"),
     ("Hugging Face", "https://huggingface.co/blog/feed.xml"),
     ("Google Research", "https://research.google/blog/rss/"),
-    ("MIT News", "https://news.mit.edu/rss/feed"),
-    ("Wired", "https://www.wired.com/feed/category/business/latest/rss"),
+    ("9to5", "https://9to5google.com/guides/google/feed/"),
+    ("MIT", "https://news.mit.edu/rss/feed"),
+    ("Bloomberg", "https://news.google.com/rss/search?q=when:24h+allinurl:bloomberg.com+(AI+OR+Robot+OR+Security+OR+Tech)&hl=en-US&gl=US&ceid=US:en"),
+    ("Reuters", "https://news.google.com/rss/search?q=when:24h+site:reuters.com+(AI+OR+Artificial+Intelligence+OR+Algorithm)&hl=en-US&gl=US&ceid=US:en"),
+    ("FT", "https://news.google.com/rss/search?q=when:24h+site:ft.com+(Tech+OR+IT+OR+Software)&hl=en-US&gl=US&ceid=US:en"),
+    ("NYT Tech", "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml"),
 ]
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
