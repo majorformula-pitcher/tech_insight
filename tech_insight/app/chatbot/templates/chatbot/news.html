@@ -93,10 +93,18 @@
   .card ul{margin:0 0 14px;padding-left:20px;font-size:14.5px;line-height:1.7;color:#3a4256;flex:1;}
   .card ul li{margin-bottom:7px;}
   .meta{font-size:12px;color:var(--muted);margin-bottom:12px;}
-  .actions{display:flex;gap:8px;}
-  .actions a{flex:1;text-align:center;text-decoration:none;font-size:14px;font-weight:600;padding:10px;border-radius:10px;}
-  .a-analyze{background:var(--grad);color:#fff;}
-  .a-orig{background:#f1f5f9;color:var(--muted);}
+  .card-foot{display:flex;flex-direction:column;gap:8px;}
+  .actions{display:flex;gap:8px;align-items:center;}
+  .actions a.a-analyze{flex:1;text-align:center;text-decoration:none;font-size:14px;font-weight:600;
+    padding:10px;border-radius:10px;background:var(--grad);color:#fff;}
+  .icon-btn{width:40px;height:40px;border:1px solid var(--border);border-radius:10px;background:#fff;
+    cursor:pointer;font-size:16px;color:var(--muted);}
+  .icon-btn:hover{background:#f4f7ff;border-color:var(--accent);}
+  .engine-info{font-size:11px;color:var(--muted);text-align:right;}
+  .engine-info .ts{opacity:.7;}
+  .edit-box{margin-bottom:12px;}
+  .edit-box input,.edit-box textarea{width:100%;border:1px solid var(--accent);border-radius:8px;
+    padding:8px 10px;font-size:14px;margin-bottom:6px;font-family:inherit;}
   .empty{text-align:center;color:var(--muted);padding:50px;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2b2f3a;color:#fff;
     padding:10px 20px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;z-index:50;}
@@ -171,11 +179,18 @@
         <div class="body">
           <span class="badge">{{ it.category }}</span>
           <h3{% if it.url %} class="clickable" onclick="window.open('{{ it.url }}','_blank')"{% endif %}>{{ it.title }}</h3>
-          <ul>{% for line in it.summary_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+          <ul class="summary">{% for line in it.summary_lines %}<li>{{ line }}</li>{% endfor %}</ul>
           <div class="meta">{{ it.source }} · {{ it.date }}</div>
-          <div class="actions">
-            <a class="a-analyze" href="/chat/?news={{ it.id }}">⚡ 파급효과 분석</a>
-            {% if it.url %}<a class="a-orig" href="{{ it.url }}" target="_blank">원문</a>{% endif %}
+          <div class="card-foot">
+            <div class="actions">
+              <a class="a-analyze" href="/chat/?news={{ it.id }}">⚡ 파급효과 분석</a>
+              <button class="icon-btn" title="수정" onclick="editCard({{ it.id }}, this)">✏️</button>
+              <button class="icon-btn" title="복사" onclick="copyCard({{ it.id }}, this)">⧉</button>
+            </div>
+            <div class="engine-info">
+              {% if it.engine %}{{ it.engine }}가 요약{% endif %}
+              {% if it.created_at %}<span class="ts">({{ it.created_at }})</span>{% endif %}
+            </div>
           </div>
         </div>
       </div>
@@ -256,20 +271,72 @@ function prependCard(c){
   const ul=c.summary_lines.map(l=>`<li>${esc(l)}</li>`).join('');
   const open=c.url?`onclick="window.open('${c.url}','_blank')"`:'';
   const clk=c.url?'clickable':'';
+  const eng=c.engine?`${esc(c.engine)}가 요약`:'';
+  const ts=c.created_at?`<span class="ts">(${c.created_at})</span>`:'';
   const html=`<div class="card" data-cat="${c.category}">
     ${c.image?`<img class="thumb ${clk}" src="${c.image}" onerror="this.style.display='none'" ${open}>`:''}
     <div class="body"><span class="badge">${c.category}</span>
-      <h3 class="${clk}" ${open}>${esc(c.title)}</h3><ul>${ul}</ul>
+      <h3 class="${clk}" ${open}>${esc(c.title)}</h3><ul class="summary">${ul}</ul>
       <div class="meta">${esc(c.source)} · ${fmtDate(c.date)}</div>
-      <div class="actions">
-        <a class="a-analyze" href="/chat/?news=${c.id}">⚡ 파급효과 분석</a>
-        ${c.url?`<a class="a-orig" href="${c.url}" target="_blank">원문</a>`:''}
+      <div class="card-foot">
+        <div class="actions">
+          <a class="a-analyze" href="/chat/?news=${c.id}">⚡ 파급효과 분석</a>
+          <button class="icon-btn" title="수정" onclick="editCard(${c.id}, this)">✏️</button>
+          <button class="icon-btn" title="복사" onclick="copyCard(${c.id}, this)">⧉</button>
+        </div>
+        <div class="engine-info">${eng} ${ts}</div>
       </div></div></div>`;
   $('grid').insertAdjacentHTML('afterbegin', html);
   const cnt=$('count'); cnt.textContent=(document.querySelectorAll('.card').length)+'건';
 }
 
 function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+
+// 카드 복사 (제목 + 요약)
+function copyCard(id, btn){
+  const card=btn.closest('.card');
+  const title=card.querySelector('h3').textContent.trim();
+  const summary=[...card.querySelectorAll('.summary li')].map(li=>'• '+li.textContent.trim()).join('\n');
+  const text=`${title}\n\n${summary}`;
+  navigator.clipboard.writeText(text).then(()=>{
+    const o=btn.textContent; btn.textContent='✓'; toast('복사되었습니다.');
+    setTimeout(()=>btn.textContent=o,1500);
+  }).catch(()=>toast('복사 실패'));
+}
+
+// 카드 수정 (제목·요약 인라인 편집)
+function editCard(id, btn){
+  const card=btn.closest('.card');
+  const h3=card.querySelector('h3');
+  const ul=card.querySelector('.summary');
+  if(card.dataset.editing==='1'){ // 저장
+    const newTitle=card.querySelector('.edit-title').value.trim();
+    const newSummary=card.querySelector('.edit-summary').value.trim();
+    fetch('/chat/api/edit-news/'+id+'/',{
+      method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':TOKEN},
+      body:JSON.stringify({title:newTitle, summary:newSummary})
+    }).then(r=>r.json()).then(d=>{
+      if(d.card){
+        h3.textContent=d.card.title;
+        ul.innerHTML=d.card.summary_lines.map(l=>`<li>${esc(l)}</li>`).join('');
+        toast('수정되었습니다.');
+      }else toast('수정 실패');
+    });
+    card.dataset.editing='0'; btn.textContent='✏️';
+    card.querySelector('.edit-box').remove();
+    h3.style.display=''; ul.style.display='';
+  }else{ // 편집 모드 진입
+    card.dataset.editing='1'; btn.textContent='💾';
+    const curTitle=h3.textContent.trim();
+    const curSummary=[...ul.querySelectorAll('li')].map(li=>li.textContent.trim()).join('\n');
+    h3.style.display='none'; ul.style.display='none';
+    const box=document.createElement('div'); box.className='edit-box';
+    box.innerHTML=`<input class="edit-title" value="${esc(curTitle)}">
+      <textarea class="edit-summary" rows="6">${esc(curSummary)}</textarea>`;
+    ul.parentNode.insertBefore(box, ul.nextSibling);
+  }
+}
+
 // 2026-06-11 → 2026. 6. 11.
 function fmtDate(s){
   const m=(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);

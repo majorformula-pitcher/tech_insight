@@ -60,6 +60,8 @@ def news(request):
         "url": d.url,
         "date": (f"{d.published_date.year}. {d.published_date.month}. {d.published_date.day}."
                  if d.published_date else ""),
+        "engine": d.engine,
+        "created_at": d.created_at.strftime("%Y.%m.%d %H:%M"),
     } for d in qs]
 
     # 카테고리별 개수

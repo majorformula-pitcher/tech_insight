@@ -118,21 +118,48 @@ def add_news(request):
     if len(pub) != 10 or pub[4] != "-":
         pub = None
 
+    engine = "EXAONE" + (" (수동)" if manual else "")
     source, _ = Source.objects.get_or_create(name="뉴스", defaults={"type": Source.Type.NEWS})
     doc = Document.objects.create(
         source=source, title=title[:500] or "(제목 없음)",
         published_date=pub,
         raw_text=body, summary=summary, category=category,
         image=image[:1000] if image else "", url=url,
-        authors=payload.get("source_name", ""),
+        authors=payload.get("source_name", ""), engine=engine,
         status=Document.Status.ANALYZED if summary else Document.Status.EXTRACTED,
     )
-    return JsonResponse({
-        "card": {
-            "id": doc.id, "title": doc.title,
-            "summary_lines": [s for s in summary.split("\n") if s.strip()],
-            "category": category or "기타", "image": doc.image,
-            "source": doc.authors, "url": doc.url,
-            "date": str(doc.published_date) if doc.published_date else "",
-        }
-    })
+    return JsonResponse({"card": serialize_card(doc)})
+
+
+def serialize_card(doc):
+    """뉴스 카드 1건을 프론트 형식으로 직렬화."""
+    return {
+        "id": doc.id, "title": doc.title,
+        "summary_lines": [s for s in (doc.summary or "").split("\n") if s.strip()],
+        "summary": doc.summary, "category": doc.category or "기타",
+        "image": doc.image, "source": doc.authors, "url": doc.url,
+        "date": (f"{doc.published_date.year}. {doc.published_date.month}. {doc.published_date.day}."
+                 if doc.published_date else ""),
+        "engine": doc.engine,
+        "created_at": doc.created_at.strftime("%Y.%m.%d %H:%M"),
+    }
+
+
+@require_POST
+def edit_news(request, doc_id):
+    """뉴스 카드 제목/요약/카테고리 수정."""
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "잘못된 요청"}, status=400)
+    doc = Document.objects.filter(id=doc_id, source__name="뉴스").first()
+    if not doc:
+        return JsonResponse({"error": "없는 뉴스"}, status=404)
+    if "title" in payload:
+        doc.title = (payload["title"] or "").strip()[:500] or doc.title
+    if "summary" in payload:
+        doc.summary = (payload["summary"] or "").strip()
+    if "category" in payload and payload["category"] in CATEGORIES:
+        doc.category = payload["category"]
+    doc.save(update_fields=["title", "summary", "category"])
+    return JsonResponse({"card": serialize_card(doc)})

@@ -82,6 +82,8 @@ class Document(models.Model):
     category = models.CharField("카테고리", max_length=30, blank=True,
                                 help_text="뉴스 분류: AI/Robot/Security/Data/IT 등")
     image = models.URLField("썸네일 이미지", blank=True, max_length=1000)
+    engine = models.CharField("요약 엔진", max_length=50, blank=True,
+                              help_text="요약에 사용한 모델: EXAONE/Claude 등")
 
     status = models.CharField(
         "상태", max_length=12, choices=Status.choices, default=Status.COLLECTED
