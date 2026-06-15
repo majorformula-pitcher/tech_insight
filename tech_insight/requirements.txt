@@ -1,0 +1,27 @@
+# Tech Insight — Python 패키지 의존성
+# 설치:  pip install -r requirements.txt
+# 요구:  Python 3.12 이상 (Django 6.0 요구사항)
+#
+# 참고: LLM(EXAONE)·임베딩(bge-m3)은 pip 패키지가 아니라 Ollama로 별도 설치합니다.
+#   1) https://ollama.com 설치
+#   2) ollama pull exaone3.5 && ollama pull bge-m3
+
+# ── 웹 프레임워크 ──────────────────────────────
+Django==6.0.5
+whitenoise==6.8.2          # 정적 파일 서빙 (운영, DEBUG=0)
+
+# ── 데이터 수집 / 크롤링 ───────────────────────
+requests==2.34.2
+beautifulsoup4==4.15.0
+feedparser==6.0.12         # RSS 뉴스 파싱
+ddgs==9.14.4               # 실시간 웹 검색 (DuckDuckGo, 무료)
+
+# ── 문서 처리 ─────────────────────────────────
+pdfplumber==0.11.9         # 논문 PDF 텍스트 추출 (2단 레이아웃 처리)
+openpyxl==3.1.5            # 엑셀 뉴스 임포트
+
+# ── 의미 기반 벡터 검색 ────────────────────────
+numpy==2.4.6               # 임베딩 코사인 유사도 계산
+
+# ── 운영 서버 (배포용 — 로컬 개발에는 불필요) ──
+# gunicorn               # Oracle 등 리눅스 배포 시 설치: pip install gunicorn
