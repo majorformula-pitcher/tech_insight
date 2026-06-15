@@ -84,6 +84,12 @@ class Document(models.Model):
     image = models.URLField("썸네일 이미지", blank=True, max_length=1000)
     engine = models.CharField("요약 엔진", max_length=50, blank=True,
                               help_text="요약에 사용한 모델: EXAONE/Claude 등")
+    metric = models.CharField("저명도 지표", max_length=80, blank=True,
+                              help_text="논문 수집 근거: 인용수/추천수/게재 학회 등")
+
+    # 의미 기반 검색용 임베딩 (float32 패킹). embed_model 로 어떤 모델로 만들었는지 고정.
+    embedding = models.BinaryField("임베딩 벡터", null=True, blank=True, editable=False)
+    embed_model = models.CharField("임베딩 모델", max_length=50, blank=True, editable=False)
 
     status = models.CharField(
         "상태", max_length=12, choices=Status.choices, default=Status.COLLECTED
@@ -128,3 +134,43 @@ class Chunk(models.Model):
 
     def __str__(self):
         return f"{self.document_id}#{self.order}"
+
+
+# ── 출처별 프록시 모델 ─────────────────────────────────────────────
+# Document 한 테이블을 admin에서 출처별로 분리해 보여주기 위한 가짜 모델들.
+# 실제 테이블은 만들지 않고(proxy=True), 화면 메뉴만 출처별로 나눈다.
+# 각 admin이 source 이름으로 queryset을 필터링한다.
+
+class JournalDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "정보과학회지"
+        verbose_name_plural = "정보과학회지"
+
+
+class ArxivDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "arXiv"
+        verbose_name_plural = "arXiv"
+
+
+class ScholarDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "Semantic Scholar"
+        verbose_name_plural = "Semantic Scholar"
+
+
+class HFDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "HuggingFace Papers"
+        verbose_name_plural = "HuggingFace Papers"
+
+
+class NewsDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "뉴스"
+        verbose_name_plural = "뉴스"

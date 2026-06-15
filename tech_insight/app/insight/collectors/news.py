@@ -127,6 +127,31 @@ def extract_body(url: str, timeout: int = 15) -> str:
     return extract_article(url, timeout)["body"]
 
 
+def fetch_og_image(url: str, timeout: int = 12) -> str:
+    """기사 URL에서 대표 이미지(og:image)만 가볍게 추출. 절대 URL로 반환, 실패 시 ''"""
+    from urllib.parse import urljoin
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=timeout)
+        resp.raise_for_status()
+    except Exception:  # noqa: BLE001
+        return ""
+    soup = BeautifulSoup(resp.text, "html.parser")
+    # og:image → twitter:image → link[rel=image_src] 순으로 시도
+    candidates = [
+        ("meta", {"property": "og:image"}, "content"),
+        ("meta", {"name": "twitter:image"}, "content"),
+        ("meta", {"property": "twitter:image"}, "content"),
+        ("link", {"rel": "image_src"}, "href"),
+    ]
+    for tag, attrs, key in candidates:
+        el = soup.find(tag, attrs=attrs)
+        if el and el.get(key):
+            img = el[key].strip()
+            if img:
+                return urljoin(url, img)  # 상대경로면 절대경로로
+    return ""
+
+
 def _extract_body_from_soup(soup) -> str:
 
     # 1) JSON-LD articleBody (차단 우회에 강함)

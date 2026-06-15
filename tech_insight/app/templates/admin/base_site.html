@@ -77,6 +77,14 @@
   color: #fff;
   border-radius: 8px 8px 0 0;
 }
+/* 앱 그룹 제목을 대문자 변환 없이 원래 표기("Data Source")로 + 글씨 키움 */
+.module caption, .module caption a, #nav-sidebar caption,
+#nav-sidebar .module caption {
+  text-transform: none !important;
+  font-size: 15px !important;   /* 상단 카드(Insight Dashboard 등)와 동일 */
+  font-weight: 700 !important;
+  letter-spacing: 0.2px;
+}
 
 /* 패널/모듈을 카드처럼 */
 .module {

@@ -18,12 +18,12 @@
   header .prov{color:#fff;font-size:12px;background:rgba(255,255,255,.22);padding:5px 12px;border-radius:999px;}
   header a{color:#fff;text-decoration:none;font-weight:600;font-size:13px;
     background:rgba(255,255,255,.18);padding:7px 14px;border-radius:8px;margin-left:8px;}
-  .wrap{max-width:900px;margin:0 auto;padding:24px 20px 60px;}
+  .wrap{max-width:1296px;margin:0 auto;padding:24px 20px 60px;}
   .intro{color:var(--muted);font-size:14px;margin-bottom:16px;}
   .ask-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;
     padding:16px;box-shadow:0 1px 8px rgba(80,100,180,.06);margin-bottom:20px;}
   textarea{width:100%;border:1px solid var(--border);border-radius:10px;padding:14px;
-    font-size:15px;font-family:inherit;line-height:1.6;resize:vertical;min-height:90px;}
+    font-size:15px;font-family:inherit;line-height:1.6;resize:vertical;min-height:180px;}
   textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,110,247,.12);}
   .row{display:flex;gap:10px;align-items:center;margin-top:10px;}
   button{background:var(--accent);color:#fff;border:none;border-radius:10px;
@@ -36,7 +36,16 @@
   .answer h3{margin:0 0 10px;font-size:14px;color:var(--accent);}
   .q-echo{background:#eef2ff;border-left:3px solid var(--accent);border-radius:8px;
     padding:10px 14px;margin-bottom:16px;font-size:13.5px;color:#3a4256;
-    white-space:pre-wrap;max-height:120px;overflow:auto;}
+    white-space:pre-wrap;overflow-wrap:anywhere;}
+  /* 마크다운 렌더링된 답변 */
+  .md{white-space:normal;}
+  .md h3{font-size:17px;color:var(--text);margin:20px 0 8px;font-weight:700;}
+  .md h4{font-size:15px;color:var(--text);margin:14px 0 6px;font-weight:700;}
+  .md p{margin:9px 0;}
+  .md ul,.md ol{margin:8px 0;padding-left:26px;}
+  .md li{margin:5px 0;}
+  .md strong{font-weight:700;color:#1f2433;}
+  .md code{background:#eef2ff;color:#4338ca;padding:1px 6px;border-radius:5px;font-size:13.5px;}
   .sources{background:#f4f7ff;border:1px solid var(--border);border-radius:14px;
     padding:16px 18px;display:none;}
   .sources h3{margin:0 0 10px;font-size:13px;color:var(--muted);}
@@ -44,6 +53,10 @@
   .src:last-child{border-bottom:none;}
   .src .t{font-weight:600;}
   .src .m{color:var(--muted);font-size:12px;}
+  .kind{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;
+    margin-right:6px;vertical-align:middle;}
+  .kind-paper{background:#eef2ff;color:var(--accent);}
+  .kind-news{background:#fff0e6;color:#d97706;}
   .loading{display:none;color:var(--accent);font-weight:600;padding:10px 0;}
   .examples{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;}
   .ex{background:#eef2ff;color:var(--accent);border-radius:999px;padding:5px 12px;
@@ -63,7 +76,7 @@
 
 <div class="wrap">
   <div class="intro">
-    뉴스나 질문을 입력하면, 정보과학회지 213편 논문 요약을 근거로 파급효과·인사이트를 분석합니다.
+    뉴스나 질문을 입력하면, 국내외 논문 {{ paper_count }}편을 핵심 근거로, 최신 뉴스 {{ news_count }}건을 동향 참고로 삼아 파급효과·인사이트를 분석합니다.
   </div>
 
   <div class="ask-box">
@@ -97,10 +110,16 @@ let history = [];
 
 function renderSources(sources){
   if(!sources || !sources.length){ $('sources').style.display='none'; return; }
-  let h = '<h3>근거가 된 논문 ('+sources.length+'편)</h3>';
+  const np = sources.filter(s=>s.kind==='논문').length;
+  const nn = sources.filter(s=>s.kind==='뉴스').length;
+  const label = '근거가 된 자료 (논문 '+np+(nn?' · 뉴스 '+nn:'')+')';
+  let h = '<h3>'+label+'</h3>';
   sources.forEach(s => {
-    h += '<div class="src"><div class="t">'+escapeHtml(s.title)+'</div>'+
-         '<div class="m">'+escapeHtml(s.published_date)+' · '+escapeHtml(s.affiliations||'')+'</div></div>';
+    const cls = s.kind==='뉴스' ? 'kind-news' : 'kind-paper';
+    const badge = '<span class="kind '+cls+'">'+escapeHtml(s.kind||'논문')+'</span>';
+    const meta = [escapeHtml(s.published_date), escapeHtml(s.meta||'')].filter(Boolean).join(' · ');
+    h += '<div class="src"><div class="t">'+badge+escapeHtml(s.title)+'</div>'+
+         '<div class="m">'+meta+'</div></div>';
   });
   $('sources').innerHTML = h;
   $('sources').style.display = 'block';
@@ -109,6 +128,7 @@ function renderSources(sources){
 $('send').onclick = async () => {
   const q = $('q').value.trim();
   if(!q){ $('q').focus(); return; }
+  $('q').value = '';          // 분석 요청 시 입력칸 비우기
   $('send').disabled = true;
   $('loading').style.display = 'block';
   $('answer').style.display = 'none';
@@ -153,11 +173,14 @@ $('send').onclick = async () => {
         else if(ev === 'error'){ throw new Error(data.error||'LLM 오류'); }
       }
     }
+    // 답변 완료 → 마크다운을 깔끔한 HTML로 변환
+    const ansEl = $('ans-text');
+    if(ansEl){ ansEl.className = 'md'; ansEl.innerHTML = renderMarkdown(answerText); }
     // 대화 이력에 저장
     history.push({role:'user', content:q});
     history.push({role:'assistant', content:answerText});
     if(history.length > 8) history = history.slice(-8);
-    // 입력칸은 그대로 유지 (방금 한 질문을 계속 볼 수 있게)
+    // 질문은 위 분석 결과 박스(q-echo)에 그대로 남으므로 입력칸은 비워 둔다
   }catch(err){
     $('answer').innerHTML = '<h3 style="color:#dc2626;">오류</h3>'+escapeHtml(err.message);
     $('answer').style.display = 'block';
@@ -168,6 +191,38 @@ $('send').onclick = async () => {
 };
 function escapeHtml(s){
   return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+// 챗봇 답변용 경량 마크다운 → HTML (### 제목, **굵게**, `코드`, -/1. 목록)
+function renderMarkdown(src){
+  const inline = s => escapeHtml(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+?)`/g, '<code>$1</code>');
+  let html = '', listType = null;
+  const closeList = () => { if(listType){ html += '</'+listType+'>'; listType = null; } };
+  for(const raw of (src||'').split('\n')){
+    const line = raw.replace(/\s+$/, '');
+    // 빈 줄은 목록을 끊지 않는다 (항목 사이 빈 줄로 번호가 1,1,1 되는 문제 방지).
+    // 목록은 제목/문단 등 다른 블록을 만날 때만 닫힌다.
+    if(!line.trim()){ continue; }
+    let m;
+    if(m = line.match(/^(#{1,6})\s+(.*)$/)){
+      closeList();
+      const tag = m[1].length <= 3 ? 'h3' : 'h4';
+      html += '<'+tag+'>'+inline(m[2])+'</'+tag+'>';
+    } else if(m = line.match(/^\s*[-*]\s+(.*)$/)){
+      if(listType !== 'ul'){ closeList(); html += '<ul>'; listType = 'ul'; }
+      html += '<li>'+inline(m[1])+'</li>';
+    } else if(m = line.match(/^\s*\d+\.\s+(.*)$/)){
+      if(listType !== 'ol'){ closeList(); html += '<ol>'; listType = 'ol'; }
+      html += '<li>'+inline(m[1])+'</li>';
+    } else {
+      closeList();
+      html += '<p>'+inline(line)+'</p>';
+    }
+  }
+  closeList();
+  return html;
 }
 </script>
 </body>

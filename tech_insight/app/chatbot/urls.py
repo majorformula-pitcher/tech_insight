@@ -14,4 +14,5 @@ urlpatterns = [
     path("api/rss/<int:feed_id>/", news_api.feed_items, name="rss_items"),
     path("api/add-news/", news_api.add_news, name="add_news"),
     path("api/edit-news/<int:doc_id>/", news_api.edit_news, name="edit_news"),
+    path("api/delete-news/<int:doc_id>/", news_api.delete_news, name="delete_news"),
 ]

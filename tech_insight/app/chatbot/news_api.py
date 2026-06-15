@@ -6,6 +6,7 @@
 import json
 
 from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
@@ -141,8 +142,18 @@ def serialize_card(doc):
         "date": (f"{doc.published_date.year}. {doc.published_date.month}. {doc.published_date.day}."
                  if doc.published_date else ""),
         "engine": doc.engine,
-        "created_at": doc.created_at.strftime("%Y.%m.%d %H:%M"),
+        "created_at": timezone.localtime(doc.created_at).strftime("%Y.%m.%d %H:%M"),
     }
+
+
+@require_POST
+def delete_news(request, doc_id):
+    """뉴스 카드 삭제 (DB에서 제거)."""
+    doc = Document.objects.filter(id=doc_id, source__name="뉴스").first()
+    if not doc:
+        return JsonResponse({"error": "없는 뉴스"}, status=404)
+    doc.delete()
+    return JsonResponse({"ok": True})
 
 
 @require_POST
