@@ -32,7 +32,7 @@ def index(request):
         d = Document.objects.filter(id=news_id, source__name="뉴스").first()
         if d:
             body = d.summary or d.raw_text[:500]
-            prefill = f"[뉴스] {d.title}\n{body}\n\n이 뉴스의 파급효과를 우리 논문 근거로 분석해줘."
+            prefill = f"[뉴스] {d.title}\n{body}\n\n이 뉴스의 파급효과를 우리 논문과 뉴스를 근거로 분석해줘."
     # 근거로 쓰는 자료 수 — retriever와 동일 기준(요약 있음)
     paper_count = (Document.objects
                    .filter(source__type=Source.Type.PAPER)
@@ -83,13 +83,18 @@ def news(request):
     })
 
 
-def _build_prompt(question, history=None):
-    """질문으로 논문(검증 근거)+뉴스(최신 동향) 검색 후 프롬프트 구성.
-    (docs, news, user_prompt) 반환."""
+def _build_prompt(question, history=None, use_web=False):
+    """질문으로 논문(검증 근거)+뉴스(최신 동향)[+웹(실시간)] 검색 후 프롬프트 구성.
+    (docs, news, web, user_prompt) 반환."""
     docs = retrieve(question, top_k=8)                          # 논문 8편 (핵심 근거)
     news = retrieve(question, top_k=6, source_type="news")      # 뉴스 후보
     # 분석 중인 뉴스 자신이 근거로 딸려오는 자기참조 제거 후 4건만
     news = [n for n in news if n["title"][:25] not in question][:4]
+
+    web = []
+    if use_web:
+        from insight.websearch import search_web
+        web = search_web(question, max_results=5, fetch_top=2)
 
     if docs:
         context = "\n\n".join(
@@ -102,6 +107,10 @@ def _build_prompt(question, history=None):
     news_ctx = "\n\n".join(
         f"[뉴스 {i+1}] {d['title']} ({d['published_date']}, {d['authors']})\n요약: {d['summary']}"
         for i, d in enumerate(news)
+    )
+    web_ctx = "\n\n".join(
+        f"[웹 {i+1}] {w['title']} ({w['url']})\n{(w['body'] or w['snippet'])[:1200]}"
+        for i, w in enumerate(web)
     )
 
     convo = ""
@@ -117,15 +126,17 @@ def _build_prompt(question, history=None):
     user_prompt = (
         f"# 근거 논문 요약 (검증된 핵심 근거)\n{context}\n\n"
         + (f"# 참고 최신 뉴스 (동향 보조자료)\n{news_ctx}\n\n" if news_ctx else "")
+        + (f"# 웹 검색 결과 (실시간 외부 정보·미검증, 참고용)\n{web_ctx}\n\n" if web_ctx else "")
         + f"{convo}"
         + f"# 질문/뉴스\n{question}\n\n"
-        + "위 근거에 기반해 분석하라. 논문을 핵심 근거로, 뉴스는 최신 동향 참고로 활용하라."
+        + "위 자료에 기반해 분석하라. 신뢰도는 논문 > 뉴스 > 웹 순으로 가중하되, "
+        + "웹 검색 결과는 최신 외부 동향을 보강하는 참고로만 활용하라."
     )
-    return docs, news, user_prompt
+    return docs, news, web, user_prompt
 
 
-def _sources_of(docs, news=None):
-    """근거 자료 목록(논문+뉴스)을 프론트 표시용으로 직렬화. 종류(kind) 라벨 포함."""
+def _sources_of(docs, news=None, web=None):
+    """근거 자료 목록(논문+뉴스+웹)을 프론트 표시용으로 직렬화. 종류(kind) 라벨 포함."""
     out = [
         {
             "title": d["title"],
@@ -146,6 +157,16 @@ def _sources_of(docs, news=None):
         }
         for d in (news or [])
     ]
+    out += [
+        {
+            "title": w["title"],
+            "published_date": "",
+            "meta": w["url"],
+            "kind": "웹",
+            "score": 0,
+        }
+        for w in (web or [])
+    ]
     return out
 
 
@@ -159,14 +180,15 @@ def ask(request):
     question = (payload.get("question") or "").strip()
     if not question:
         return JsonResponse({"error": "질문을 입력하세요."}, status=400)
-    docs, news, user_prompt = _build_prompt(question, payload.get("history"))
+    docs, news, web, user_prompt = _build_prompt(
+        question, payload.get("history"), use_web=bool(payload.get("web")))
     try:
         answer = chat(SYSTEM_PROMPT, user_prompt, max_tokens=2000)
     except Exception as e:  # noqa: BLE001
         return JsonResponse({"error": f"LLM 호출 실패: {e}"}, status=502)
     return JsonResponse({
         "answer": answer,
-        "sources": _sources_of(docs, news),
+        "sources": _sources_of(docs, news, web),
         "provider": current_provider(),
     })
 
@@ -182,11 +204,12 @@ def ask_stream(request):
     if not question:
         return JsonResponse({"error": "질문을 입력하세요."}, status=400)
 
-    docs, news, user_prompt = _build_prompt(question, payload.get("history"))
+    docs, news, web, user_prompt = _build_prompt(
+        question, payload.get("history"), use_web=bool(payload.get("web")))
 
     def event_stream():
         # 먼저 근거 출처를 한 번 보냄
-        yield "event: sources\ndata: " + json.dumps(_sources_of(docs, news), ensure_ascii=False) + "\n\n"
+        yield "event: sources\ndata: " + json.dumps(_sources_of(docs, news, web), ensure_ascii=False) + "\n\n"
         # 그다음 답변 토큰을 흘려보냄
         try:
             for piece in stream(SYSTEM_PROMPT, user_prompt, max_tokens=2000):

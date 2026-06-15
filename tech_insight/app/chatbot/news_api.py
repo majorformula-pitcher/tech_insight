@@ -132,6 +132,23 @@ def add_news(request):
     return JsonResponse({"card": serialize_card(doc)})
 
 
+def _fmt_pub(pd):
+    """발행일(date 객체 또는 'YYYY-MM-DD' 문자열)을 'Y. n. j.' 형식으로.
+    막 create()한 객체는 published_date가 아직 문자열이라 .year 접근이 깨지므로 방어."""
+    if not pd:
+        return ""
+    if isinstance(pd, str):
+        parts = pd[:10].split("-")
+        if len(parts) == 3 and all(parts):
+            try:
+                y, m, d = (int(x) for x in parts)
+                return f"{y}. {m}. {d}."
+            except ValueError:
+                return ""
+        return ""
+    return f"{pd.year}. {pd.month}. {pd.day}."
+
+
 def serialize_card(doc):
     """뉴스 카드 1건을 프론트 형식으로 직렬화."""
     return {
@@ -139,8 +156,7 @@ def serialize_card(doc):
         "summary_lines": [s for s in (doc.summary or "").split("\n") if s.strip()],
         "summary": doc.summary, "category": doc.category or "기타",
         "image": doc.image, "source": doc.authors, "url": doc.url,
-        "date": (f"{doc.published_date.year}. {doc.published_date.month}. {doc.published_date.day}."
-                 if doc.published_date else ""),
+        "date": _fmt_pub(doc.published_date),
         "engine": doc.engine,
         "created_at": timezone.localtime(doc.created_at).strftime("%Y.%m.%d %H:%M"),
     }

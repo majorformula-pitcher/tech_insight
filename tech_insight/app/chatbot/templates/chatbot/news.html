@@ -184,7 +184,7 @@
     <div class="count" id="count">{{ total }}건</div>
     <div class="grid" id="grid">
       {% for it in items %}
-      <div class="card" data-cat="{{ it.category }}">
+      <div class="card" data-cat="{{ it.category }}" data-url="{{ it.url }}">
         <button class="del-btn" title="삭제" onclick="deleteCard({{ it.id }}, this)">✕</button>
         <div class="thumb-wrap{% if it.url %} clickable{% endif %}"{% if it.url %} onclick="window.open('{{ it.url }}','_blank')"{% endif %}>
           {% if it.image %}<img class="thumb" src="{{ it.image }}" loading="lazy" onerror="this.style.display='none'">{% endif %}
@@ -226,6 +226,9 @@ async function loadFeeds(){
   const {feeds}=await r.json();
   $('feeds').innerHTML=feeds.map(f=>`<button class="feed-btn" data-id="${f.id}">${f.name}</button>`).join('');
   document.querySelectorAll('.feed-btn').forEach(b=>b.onclick=()=>selectFeed(b.dataset.id,b));
+  // 첫 방문 시 첫 번째 RSS 목록을 기본으로 자동 로드
+  const first=document.querySelector('.feed-btn');
+  if(first) selectFeed(first.dataset.id, first);
 }
 
 // 피드 선택 → 기사 목록
@@ -283,7 +286,7 @@ function prependCard(c){
   const clk=c.url?'clickable':'';
   const eng=c.engine?`${esc(c.engine)}가 요약`:'';
   const ts=c.created_at?`<span class="ts">(${c.created_at})</span>`:'';
-  const html=`<div class="card" data-cat="${c.category}">
+  const html=`<div class="card" data-cat="${c.category}" data-url="${esc(c.url||'')}">
     <button class="del-btn" title="삭제" onclick="deleteCard(${c.id}, this)">✕</button>
     <div class="thumb-wrap ${clk}" ${open}>${c.image?`<img class="thumb" src="${c.image}" onerror="this.style.display='none'">`:''}</div>
     <div class="body"><span class="badge">${c.category}</span>
@@ -300,6 +303,18 @@ function prependCard(c){
 
 function esc(s){return (s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 
+// 삭제된 뉴스의 RSS 목록 버튼을 ✓(추가됨) → +(추가 가능)로 되돌린다
+function revertRssAdd(url){
+  if(!url) return;
+  document.querySelectorAll('.rss-add.added').forEach(b=>{
+    if(decodeURIComponent(b.dataset.url||'') === url){
+      b.classList.remove('added'); b.disabled=false; b.textContent='+';
+      const item=b.closest('.rss-item'); if(item) item.classList.remove('added');
+      b.onclick=()=>addNews(b);
+    }
+  });
+}
+
 // 카드 삭제 (DB에서도 제거)
 function deleteCard(id, btn){
   if(!confirm('이 뉴스를 삭제할까요? 되돌릴 수 없습니다.')) return;
@@ -307,7 +322,9 @@ function deleteCard(id, btn){
     method:'POST', headers:{'X-CSRFToken':TOKEN}
   }).then(r=>r.json()).then(d=>{
     if(d.ok){
-      const card=btn.closest('.card'); card.remove();
+      const card=btn.closest('.card');
+      revertRssAdd(card.dataset.url);   // 왼쪽 RSS 목록의 ✓ → + 로 복원
+      card.remove();
       $('count').textContent=document.querySelectorAll('#grid .card').length+'건';
       toast('삭제되었습니다.');
     }else toast('삭제 실패: '+(d.error||'오류'));
