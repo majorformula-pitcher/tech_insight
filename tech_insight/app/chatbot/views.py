@@ -33,13 +33,13 @@ def index(request):
         if d:
             body = d.summary or d.raw_text[:500]
             prefill = f"[뉴스] {d.title}\n{body}\n\n이 뉴스의 파급효과를 우리 논문과 뉴스를 근거로 분석해줘."
-    # 근거로 쓰는 자료 수 — retriever와 동일 기준(논문+연구블로그, 요약 있음)
+    # 근거 자료 수 — 대시보드·관리화면 총계와 일치하도록 출처 유형별 전체 건수로 표시
     paper_count = (Document.objects
                    .filter(source__type__in=[Source.Type.PAPER, Source.Type.BLOG])
-                   .exclude(summary="").count())
+                   .count())
     news_count = (Document.objects
                   .filter(source__type=Source.Type.NEWS)
-                  .exclude(summary="").count())
+                  .count())
     return render(request, "chatbot/index.html", {
         "provider": current_provider(), "prefill": prefill,
         "paper_count": paper_count, "news_count": news_count,
