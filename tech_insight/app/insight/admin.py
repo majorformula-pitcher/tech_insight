@@ -8,7 +8,8 @@ from django.utils.safestring import mark_safe
 
 from .models import (
     Source, Keyword, Document, Chunk,
-    JournalDocument, ArxivDocument, ScholarDocument, HFDocument, NewsDocument,
+    JournalDocument, ScholarDocument, HFDocument, NewsDocument,
+    AnthropicDocument, OpenAIDocument, DeepMindDocument, MSResearchDocument, BAIRDocument,
 )
 
 
@@ -121,11 +122,6 @@ class JournalDocumentAdmin(DocumentAdmin):
     list_display = ("title", "published_date", "affiliations", "status")
 
 
-@admin.register(ArxivDocument)
-class ArxivDocumentAdmin(DocumentAdmin):
-    source_name = "arXiv"
-
-
 @admin.register(ScholarDocument)
 class ScholarDocumentAdmin(DocumentAdmin):
     source_name = "Semantic Scholar"
@@ -143,17 +139,53 @@ class NewsDocumentAdmin(DocumentAdmin):
     list_filter = ("status", "category")
 
 
+# 연구소 블로그 — 출처별 개별 메뉴 (공통 컬럼)
+class _BlogAdmin(DocumentAdmin):
+    list_display = ("title", "published_date", "status")
+
+
+@admin.register(AnthropicDocument)
+class AnthropicDocumentAdmin(_BlogAdmin):
+    source_name = "Anthropic"
+
+
+@admin.register(OpenAIDocument)
+class OpenAIDocumentAdmin(_BlogAdmin):
+    source_name = "OpenAI"
+
+
+@admin.register(DeepMindDocument)
+class DeepMindDocumentAdmin(_BlogAdmin):
+    source_name = "DeepMind"
+
+
+@admin.register(MSResearchDocument)
+class MSResearchDocumentAdmin(_BlogAdmin):
+    source_name = "Microsoft Research"
+
+
+@admin.register(BAIRDocument)
+class BAIRDocumentAdmin(_BlogAdmin):
+    source_name = "BAIR"
+
+
 # ── 왼쪽 메뉴(앱 모델) 표시 순서 지정 ───────────────────────────────
 # Django admin은 기본적으로 모델을 이름 알파벳순으로 정렬한다.
 # 출처를 논리적 순서(국내→해외→뉴스→출처/키워드)로 보이도록 정렬을 덮어쓴다.
-_MODEL_ORDER = ["정보과학회지", "HuggingFace Papers", "arXiv", "Semantic Scholar", "뉴스"]
+_MODEL_ORDER = ["정보과학회지", "HuggingFace Papers", "Semantic Scholar",
+                "Anthropic Blog", "OpenAI Blog", "DeepMind Blog",
+                "Microsoft Research Blog", "BAIR Blog", "뉴스"]
 # 프록시 모델 → 실제 출처 이름 (문서 수 집계용)
 _PROXY_SOURCE = {
     "JournalDocument": "정보과학회지",
-    "ArxivDocument": "arXiv",
     "ScholarDocument": "Semantic Scholar",
     "HFDocument": "HF Papers",
     "NewsDocument": "뉴스",
+    "AnthropicDocument": "Anthropic",
+    "OpenAIDocument": "OpenAI",
+    "DeepMindDocument": "DeepMind",
+    "MSResearchDocument": "Microsoft Research",
+    "BAIRDocument": "BAIR",
 }
 _orig_get_app_list = admin.AdminSite.get_app_list
 
@@ -166,9 +198,12 @@ def _ordered_get_app_list(self, request, app_label=None):
     try:
         counts = {r["source__name"]: r["c"] for r in
                   Document.objects.values("source__name").annotate(c=Count("id"))}
+        total = Document.objects.count()
     except Exception:  # noqa: BLE001
-        counts = {}
+        counts, total = {}, None
     for app in app_list:
+        if app.get("app_label") == "insight":
+            app["doc_total"] = total      # Data Source 헤더에 표시할 전체 건수
         app["models"].sort(key=lambda m: rank.get(m["name"].lower(), 999))
         for m in app["models"]:
             src = _PROXY_SOURCE.get(m["object_name"])

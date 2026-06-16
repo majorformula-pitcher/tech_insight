@@ -174,3 +174,39 @@ class NewsDocument(Document):
         proxy = True
         verbose_name = "뉴스"
         verbose_name_plural = "뉴스"
+
+
+# 해외 연구소 블로그 — 출처별 개별 메뉴
+class AnthropicDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "Anthropic Blog"
+        verbose_name_plural = "Anthropic Blog"
+
+
+class OpenAIDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "OpenAI Blog"
+        verbose_name_plural = "OpenAI Blog"
+
+
+class DeepMindDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "DeepMind Blog"
+        verbose_name_plural = "DeepMind Blog"
+
+
+class MSResearchDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "Microsoft Research Blog"
+        verbose_name_plural = "Microsoft Research Blog"
+
+
+class BAIRDocument(Document):
+    class Meta:
+        proxy = True
+        verbose_name = "BAIR Blog"
+        verbose_name_plural = "BAIR Blog"

@@ -101,17 +101,22 @@ def _vector_ranked(query, cand):
     return [(ids[i], float(sims[i])) for i in order]
 
 
-def retrieve(query: str, top_k: int = 5, source_type: str = Source.Type.PAPER) -> list[dict]:
+def retrieve(query: str, top_k: int = 5, source_type=None) -> list[dict]:
     """
     질문과 관련된 문서 top_k개를 반환 (벡터+키워드 하이브리드).
-    기본은 '논문' 유형. source_type="news" 면 뉴스를 검색한다.
+    기본 근거 풀은 '논문 + 연구소 블로그'. source_type="news" 면 뉴스를 검색한다.
+    source_type 은 문자열 또는 리스트 모두 허용.
     각 항목: {id, title, summary, authors, affiliations, published_date, score, ...}
     """
     if not query.strip():
         return []
 
+    if source_type is None:
+        source_type = [Source.Type.PAPER, Source.Type.BLOG]   # 근거 = 논문 + 블로그
+    types = [source_type] if isinstance(source_type, str) else list(source_type)
+
     cand = list(Document.objects
-                .filter(source__type=source_type)
+                .filter(source__type__in=types)
                 .exclude(summary="")
                 .values("id", "title", "summary", "authors", "affiliations",
                         "published_date", "embedding"))

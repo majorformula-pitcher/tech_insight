@@ -1,0 +1,18 @@
+{% comment %}
+  Django 기본 date_hierarchy 오버라이드.
+  뒤로가기 링크 문구를 "언제나"(All dates 번역) 대신 "전체"로 표시한다.
+{% endcomment %}
+{% if show %}
+<nav class="toplinks">
+{% block date-hierarchy-toplinks %}
+{% block date-hierarchy-back %}
+{% if back %}<a href="{{ back.link }}" class="date-back">&lsaquo; 전체</a>{% endif %}
+{% endblock %}
+{% block date-hierarchy-choices %}
+{% for choice in choices %}
+{% if choice.link %}<a href="{{ choice.link }}">{{ choice.title }}</a>{% else %}{{ choice.title }}{% endif %}
+{% endfor %}
+{% endblock %}
+{% endblock %}
+</nav>
+{% endif %}

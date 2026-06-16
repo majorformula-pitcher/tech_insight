@@ -21,6 +21,8 @@
   /* 출처별 문서 개수 뱃지 */
   .doc-count { margin-left: 10px; color: #6b7280; font-weight: 600; font-size: 13px;
     background: #eef2ff; padding: 2px 10px; border-radius: 999px; }
+  /* Data Source 헤더 이름 옆 전체 건수 */
+  .app-total { margin-left: 10px; color: #fff; font-weight: 600; font-size: 14px; opacity: 0.92; }
 </style>
 {% endblock %}
 
@@ -64,6 +66,7 @@
       <table>
         <caption>
           <a href="{{ app.app_url }}" class="section">{{ app.name }}</a>
+          {% if app.doc_total %}<span class="app-total">(총 {{ app.doc_total }}건)</span>{% endif %}
         </caption>
         {% for model in app.models %}
           {% with model_name=model.object_name|lower %}
