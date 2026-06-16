@@ -15,6 +15,8 @@
     python manage.py collect_papers --limit 5             # scholar 분야당 5건
     python manage.py collect_papers --since-year 2024 --min-citations 100
     python manage.py collect_papers --no-summary          # 요약 생략
+    python manage.py collect_papers --sources scholar --venues NeurIPS,ICML,ACL,CVPR
+                                                          # 주제 수집 + 학회별 추가
 """
 import os
 import time
@@ -22,7 +24,7 @@ import time
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from insight.collectors.semantic_scholar import TOPICS, fetch_top_cited
+from insight.collectors.semantic_scholar import TOPICS, VENUES, fetch_top_cited
 from insight.collectors.hf_papers import fetch_trending
 from insight.collectors.arxiv import arxiv_id_from_url, download_pdf
 from insight.llm import chat
@@ -50,6 +52,9 @@ class Command(BaseCommand):
                             help="scholar: 이 연도 이후 논문만 (기본 2023)")
         parser.add_argument("--min-citations", type=int, default=50,
                             help="scholar: 최소 인용수 (기본 50)")
+        parser.add_argument("--venues", type=str, default="",
+                            help="scholar: 학회별 추가 수집 (예: NeurIPS,ICML,ACL,CVPR). "
+                                 "기존 주제 수집은 유지되고 venue 검색이 더해진다.")
         parser.add_argument("--min-upvotes", type=int, default=10,
                             help="hf: 최소 추천수 (기본 10)")
         parser.add_argument("--days", type=int, default=1,
@@ -92,6 +97,29 @@ class Command(BaseCommand):
                     continue
                 self._ingest(items, src)
                 time.sleep(2)  # API 예의
+
+            # venue 필터 추가 수집 (기존 주제 수집 유지 + 학회 지정)
+            if opts["venues"].strip() and not self._maxed():
+                venue_map = {n.lower(): (v, q) for n, v, q in VENUES}
+                for vname in [x.strip() for x in opts["venues"].split(",") if x.strip()]:
+                    if self._maxed():
+                        break
+                    entry = venue_map.get(vname.lower())
+                    if not entry:
+                        self.stderr.write(self.style.WARNING(
+                            f"  알 수 없는 학회: {vname} (가능: {', '.join(n for n,_,_ in VENUES)})"))
+                        continue
+                    vstr, q = entry
+                    self.stdout.write(f"[Scholar · venue {vname}] 인용 상위 수집 중...")
+                    try:
+                        items = fetch_top_cited(
+                            q, limit=opts["limit"], since_year=opts["since_year"],
+                            min_citations=opts["min_citations"], venue=vstr)
+                    except Exception as e:  # noqa: BLE001
+                        self.stderr.write(self.style.WARNING(f"  조회 실패 {vname}: {e}"))
+                        continue
+                    self._ingest(items, src)
+                    time.sleep(2)
 
         if "hf" in sources and not self._maxed():
             src, _ = Source.objects.get_or_create(

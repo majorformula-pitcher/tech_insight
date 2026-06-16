@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>통합 인사이트 대시보드 · Tech Insight</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:#f7f9ff; --panel:#fff; --border:#e3e8f5; --text:#2b2f3a; --muted:#6b7280;
+    --accent:#4f6ef7; --accent-soft:#eef2ff; --grad:linear-gradient(90deg,#5b8df5 0%,#8a7ff0 100%);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Pretendard","Noto Sans KR","Malgun Gothic",-apple-system,sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;}
+  .container{max-width:1400px;margin:0 auto;padding:0 0 60px;}
+  header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;
+    margin:0 0 24px;padding:22px 32px;background:var(--grad);box-shadow:0 2px 10px rgba(79,110,247,.18);}
+  header h1{margin:0;font-size:24px;font-weight:700;letter-spacing:-.3px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.12);}
+  header .sub{color:rgba(255,255,255,.92);font-size:13px;margin-top:6px;}
+  .body-pad{margin-left:32px;margin-right:32px;}
+  /* KPI 카드 */
+  .kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px;}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 20px;
+    box-shadow:0 1px 8px rgba(80,100,180,.06);}
+  .kpi .v{font-size:28px;font-weight:800;color:var(--accent);line-height:1.1;}
+  .kpi .l{font-size:13px;color:var(--muted);margin-top:6px;font-weight:600;}
+  /* 패널 그리드 */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px 22px;
+    box-shadow:0 1px 8px rgba(80,100,180,.06);}
+  .panel h2{margin:0 0 4px;font-size:16px;font-weight:700;}
+  .panel .desc{font-size:12px;color:var(--muted);margin-bottom:14px;}
+  .panel.full{grid-column:1 / -1;}
+  .chart-box{position:relative;height:260px;}
+  .section-title{font-size:18px;font-weight:800;margin:34px 0 14px;color:#2b2f3a;
+    border-left:4px solid #8a7ff0;padding-left:12px;}
+  @media (max-width:900px){ .kpi-row{grid-template-columns:repeat(2,1fr);} .grid{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+{% include "dashboard/_nav.html" %}
+<div class="container">
+  <header>
+    <div>
+      <h1>📊 통합 인사이트 대시보드</h1>
+      <div class="sub">논문·연구소 블로그·뉴스 전 출처 종합 · 총 {{ m.total }}건</div>
+    </div>
+    <div style="text-align: right;">
+      <a href="/admin/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">← 관리 화면으로</a>
+    </div>
+  </header>
+
+  <div class="body-pad">
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi"><div class="v">{{ m.total }}</div><div class="l">전체 문서</div></div>
+      <div class="kpi"><div class="v">{{ m.kpi.papers }}</div><div class="l">논문</div></div>
+      <div class="kpi"><div class="v">{{ m.kpi.blogs }}</div><div class="l">연구소 블로그</div></div>
+      <div class="kpi"><div class="v">{{ m.kpi.news }}</div><div class="l">뉴스</div></div>
+      <div class="kpi"><div class="v">{{ m.kpi.sources }}</div><div class="l">출처 수</div></div>
+    </div>
+
+    <div class="grid">
+      <div class="panel">
+        <h2>출처별 문서 수</h2>
+        <div class="desc">어느 데이터 소스에서 얼마나 모였는지</div>
+        <div class="chart-box"><canvas id="srcChart"></canvas></div>
+      </div>
+      <div class="panel">
+        <h2>유형 비율</h2>
+        <div class="desc">논문(근거) · 블로그(근거) · 뉴스(동향)</div>
+        <div class="chart-box"><canvas id="typeChart"></canvas></div>
+      </div>
+    </div>
+
+    {% if topics_available %}
+    <h2 class="section-title">🔬 토픽 클러스터링 &amp; 연구→산업 시차 (2단계)</h2>
+    <div class="grid">
+      <div class="panel full">
+        <h2>토픽별 출처 구성 (임베딩 K-means)</h2>
+        <div class="desc">전 출처를 의미(임베딩)로 묶은 토픽. 막대 색 = 논문·블로그·뉴스 구성 비율</div>
+        <div class="chart-box" style="height:440px;"><canvas id="topicChart"></canvas></div>
+      </div>
+      <div class="panel full">
+        <h2>연구 → 산업 시차 (개월)</h2>
+        <div class="desc">+ 면 연구(논문·블로그)가 먼저 다루고 뉴스(산업)가 나중. − 면 반대.
+          ※ 논문 발행일이 연 단위라 근사치이며, 방향성 위주로 해석.</div>
+        <div class="chart-box" style="height:360px;"><canvas id="lagChart"></canvas></div>
+      </div>
+    </div>
+
+    <h2 class="section-title">🌏 국내 vs 해외 &amp; 신흥 토픽 (3단계)</h2>
+    <div class="grid">
+      <div class="panel full">
+        <h2>토픽별 국내 vs 해외 연구</h2>
+        <div class="desc">국내(정보과학회지) vs 해외(HF·Semantic Scholar·연구소 블로그) 연구 건수.
+          <b style="color:#ef4444;">빨간 막대</b>는 해외만 활발하고 국내 연구가 없는 <b>국내 공백 토픽</b>.</div>
+        <div class="chart-box" style="height:420px;"><canvas id="geoChart"></canvas></div>
+      </div>
+      <div class="panel full">
+        <h2>신흥 토픽 (최근 {{ t.emerging_months }}개월 집중도)</h2>
+        <div class="desc">토픽 문서 중 최근 {{ t.emerging_months }}개월에 발행된 비중이 높을수록 '지금 급부상' 중.
+          ※ 뉴스(동향)가 최근일수록 비중을 끌어올려 산업 화제성을 함께 반영.</div>
+        <div class="chart-box" style="height:340px;"><canvas id="emergeChart"></canvas></div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+const M = {{ m_json|safe }};
+const C = { paper:'#4f6ef7', blog:'#10b981', news:'#f59e0b', soft:'#c7d2fe',
+  pal:['#4f6ef7','#8a7ff0','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#6366f1','#84cc16','#f97316'] };
+
+// 1) 출처별 (가로 막대)
+new Chart(srcChart, {
+  type:'bar',
+  data:{ labels:M.by_source.map(s=>s.name),
+    datasets:[{ data:M.by_source.map(s=>s.count), backgroundColor:'#5b8df5', borderRadius:5 }] },
+  options:{ indexAxis:'y', plugins:{legend:{display:false}}, maintainAspectRatio:false,
+    scales:{ x:{beginAtZero:true} } }
+});
+
+// 2) 유형 비율 (도넛)
+new Chart(typeChart, {
+  type:'doughnut',
+  data:{ labels:M.by_type.map(t=>t.label),
+    datasets:[{ data:M.by_type.map(t=>t.count), backgroundColor:[C.paper,C.blog,C.news] }] },
+  options:{ plugins:{legend:{position:'bottom'}}, maintainAspectRatio:false, cutout:'58%' }
+});
+
+// ===== 2단계: 토픽 클러스터링 + 시차 =====
+const T = {{ t_json|safe }};
+if (T.available) {
+  const tp = T.topics;
+  // 토픽별 출처 구성 (가로 누적 막대)
+  new Chart(topicChart, {
+    type:'bar',
+    data:{ labels: tp.map(t=>t.label), datasets:[
+      { label:'논문', data:tp.map(t=>t.paper), backgroundColor:C.paper, stack:'s' },
+      { label:'블로그', data:tp.map(t=>t.blog), backgroundColor:C.blog, stack:'s' },
+      { label:'뉴스', data:tp.map(t=>t.news), backgroundColor:C.news, stack:'s' },
+    ]},
+    options:{ indexAxis:'y', maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom'}},
+      scales:{ x:{stacked:true,beginAtZero:true}, y:{stacked:true} } }
+  });
+  // 연구→산업 시차 (둘 다 있는 토픽만, 시차순)
+  const lt = tp.filter(t=>t.lag_months!==null).sort((a,b)=>a.lag_months-b.lag_months);
+  new Chart(lagChart, {
+    type:'bar',
+    data:{ labels: lt.map(t=>t.label),
+      datasets:[{ data: lt.map(t=>t.lag_months),
+        backgroundColor: lt.map(t=> t.lag_months>=0 ? C.paper : C.news), borderRadius:4 }] },
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ title:{display:true, text:'개월  (+ 연구 선행  /  − 뉴스 선행)'} } } }
+  });
+
+  // ===== 3단계: 국내 vs 해외 + 신흥 토픽 =====
+  // 1) 국내 vs 해외 연구 (연구가 충분한 토픽만, 해외 많은 순)
+  const gt = tp.filter(t=>t.research>=5).sort((a,b)=>(b.kr+b.intl)-(a.kr+a.intl));
+  new Chart(geoChart, {
+    type:'bar',
+    data:{ labels: gt.map(t=>t.label), datasets:[
+      { label:'국내 (정보과학회지)', data:gt.map(t=>t.kr), backgroundColor:C.paper, borderRadius:4 },
+      { label:'해외 (글로벌)', data:gt.map(t=>t.intl),
+        backgroundColor:gt.map(t=> t.kr_gap ? '#ef4444' : C.blog), borderRadius:4 },
+    ]},
+    options:{ indexAxis:'y', maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom'}},
+      scales:{ x:{beginAtZero:true, title:{display:true, text:'연구 문서 수'}} } }
+  });
+
+  // 2) 신흥 토픽 (규모 있는 토픽 중 최근 비중 상위)
+  const et = tp.filter(t=>t.size>=20).sort((a,b)=>b.recent_ratio-a.recent_ratio).slice(0,8);
+  new Chart(emergeChart, {
+    type:'bar',
+    data:{ labels: et.map(t=>t.label),
+      datasets:[{ data: et.map(t=>Math.round(t.recent_ratio*100)),
+        backgroundColor:'#8a7ff0', borderRadius:4 }] },
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:(c)=>{const t=et[c.dataIndex];
+        return ` 최근 ${t.recent}/${t.size}건 (${c.parsed.x}%)`;}}}},
+      scales:{ x:{beginAtZero:true, max:100, title:{display:true, text:'최근 발행 비중 (%)'}} } }
+  });
+}
+</script>
+</body>
+</html>

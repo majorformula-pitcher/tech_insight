@@ -24,13 +24,26 @@ TOPICS = [
     ("cs.CV", "비전", "computer vision"),
 ]
 
+# 학회별 venue 필터 (별칭, Semantic Scholar venue 문자열, 넓은 검색어)
+# bulk search 는 query 가 필수라, venue 와 함께 넓은 키워드를 짝지어 학회 논문을 끌어온다.
+VENUES = [
+    ("NeurIPS", "Neural Information Processing Systems", "learning"),
+    ("ICML", "International Conference on Machine Learning", "learning"),
+    ("ICLR", "International Conference on Learning Representations", "learning"),
+    ("ACL", "Annual Meeting of the Association for Computational Linguistics", "language"),
+    ("EMNLP", "Conference on Empirical Methods in Natural Language Processing", "language"),
+    ("CVPR", "Computer Vision and Pattern Recognition", "vision"),
+    ("ICCV", "IEEE International Conference on Computer Vision", "vision"),
+    ("AAAI", "AAAI Conference on Artificial Intelligence", "artificial intelligence"),
+]
+
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
 
 
 def fetch_top_cited(query: str, limit: int = 10, since_year: int = 2023,
-                    min_citations: int = 50) -> list[dict]:
-    """검색어 분야에서 인용수 상위 논문 목록(최근 연도 + 최소 인용수 필터)."""
+                    min_citations: int = 50, venue: str = None) -> list[dict]:
+    """검색어(+선택적 학회 venue)에서 인용수 상위 논문 목록(최근 연도 + 최소 인용수)."""
     params = {
         "query": query,
         "fields": FIELDS,
@@ -39,6 +52,9 @@ def fetch_top_cited(query: str, limit: int = 10, since_year: int = 2023,
         "minCitationCount": int(min_citations),
         "fieldsOfStudy": "Computer Science",  # 타 분야(생물학 등) 고인용 논문 drift 방지
     }
+    if venue:
+        params["venue"] = venue               # 특정 학회로 한정
+
     resp = requests.get(API_URL, params=params, headers={"User-Agent": UA}, timeout=40)
     resp.raise_for_status()
     data = resp.json().get("data") or []
