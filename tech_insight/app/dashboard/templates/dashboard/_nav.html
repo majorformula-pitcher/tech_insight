@@ -1,26 +1,32 @@
-{% comment %} 대시보드 공용 좌측 메뉴 (정보과학회지 / 통합). active 변수로 현재 강조. {% endcomment %}
+{% comment %} 대시보드 공용 좌측 메뉴 (정보과학회지 / 통합). active 변수로 현재 강조.
+  사이드바는 투명 → 상단 바 영역은 본문 헤더(뒤에 underlay된 파란 배경)가 그대로 비쳐
+  로고와 헤더가 흰 줄 없이 하나의 파란 바로 이어진다. 흰색은 메뉴 영역에만 적용. {% endcomment %}
 <style>
-  body { padding-left: 215px; }
-  .dash-nav { position: fixed; left: 0; top: 0; bottom: 0; width: 215px; z-index: 100;
-    background: #fff; border-right: 1px solid #e3e8f5; padding: 0 0 20px; overflow-y: auto;
+  body { padding-left: 270px; }
+  .dash-nav { position: fixed; left: 0; top: 0; bottom: 0; width: 270px; z-index: 100;
+    background: transparent; overflow-y: auto;
     font-family: "Pretendard","Noto Sans KR","Malgun Gothic",-apple-system,sans-serif; }
-  .dash-nav .nv-h { font-weight: 800; font-size: 15px; color: #fff; padding: 18px 20px;
-    background: linear-gradient(90deg,#5b8df5 0%,#8a7ff0 100%); display: flex; align-items: center; gap: 7px; }
-  .dash-nav .nv-sub { font-size: 11px; color: #9aa3b2; padding: 16px 20px 6px;
-    font-weight: 700; letter-spacing: .3px; }
-  .dash-nav a { display: block; padding: 12px 20px; color: #3a4256; text-decoration: none;
+  .dash-nav .nv-h { font-weight: 800; font-size: 22px; color: #fff; padding: 0 24px; min-height: 66px;
+    background: transparent; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  /* 로고 아래 메뉴 영역에만 흰 배경 + 우측 구분선 (상단 바에는 닿지 않음) */
+  .dash-nav .nv-menu { background: #fff; border-right: 1px solid #e3e8f5;
+    min-height: calc(100vh - 66px); padding: 14px 0 20px; }
+  .dash-nav a { display: block; padding: 12px 24px; color: #3a4256; text-decoration: none;
     font-size: 14px; font-weight: 600; border-left: 3px solid transparent; }
   .dash-nav a:hover { background: #f4f7ff; }
   .dash-nav a.active { background: #eef2ff; color: #4f6ef7; border-left-color: #4f6ef7; }
   @media (max-width: 900px) {
     body { padding-left: 0; }
-    .dash-nav { position: static; width: auto; height: auto; bottom: auto;
-      border-right: none; border-bottom: 1px solid #e3e8f5; }
+    .dash-nav { position: static; width: auto; height: auto; bottom: auto; }
+    .dash-nav .nv-h { background: linear-gradient(90deg,#5b8df5 0%,#8a7ff0 100%); }
+    .dash-nav .nv-menu { min-height: 0; border-right: none; border-bottom: 1px solid #e3e8f5; }
+    header { margin-left: 0; width: auto; padding-left: 32px; }
   }
 </style>
 <nav class="dash-nav">
-  <div class="nv-h">📊 Insight Dashboard</div>
-  <div class="nv-sub">대시보드</div>
-  <a href="/dashboard/" class="{% if active == 'journal' %}active{% endif %}">정보과학회지</a>
-  <a href="/dashboard/unified/" class="{% if active == 'unified' %}active{% endif %}">통합</a>
+  <div class="nv-h" style="cursor:pointer;" onclick="location.reload()" title="새로고침">📊 Insight Dashboard</div>
+  <div class="nv-menu">
+    <a href="/dashboard/" class="{% if active == 'journal' %}active{% endif %}">정보과학회지</a>
+    <a href="/dashboard/unified/" class="{% if active == 'unified' %}active{% endif %}">통합</a>
+  </div>
 </nav>

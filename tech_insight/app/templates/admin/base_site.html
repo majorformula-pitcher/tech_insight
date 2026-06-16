@@ -65,11 +65,18 @@
   --message-error-bg: #ffeaea;
 }
 
-/* 상단 헤더에 그라데이션 적용 */
+/* 상단 헤더에 그라데이션 적용 + 다른 페이지(대시보드·챗봇·뉴스)와 동일한 높이/로고 위치로 통일 */
 #header {
   background: var(--header-bg);
   box-shadow: 0 2px 10px rgba(79,110,247,0.18);
+  min-height: 66px;
+  box-sizing: border-box;
+  padding: 0 24px;
+  align-items: center;
 }
+#branding { margin: 0; padding: 0; }
+#site-name { margin: 0; }
+#site-name a { font-size: 22px; font-weight: 800; }
 
 /* 좌측 사이드바 앱 헤더 */
 .module h2, .module caption, .inline-group h2 {

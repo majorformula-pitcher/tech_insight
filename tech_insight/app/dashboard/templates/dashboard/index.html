@@ -20,7 +20,7 @@
   body { margin: 0; font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
   .container { max-width: 1400px; margin: 0 auto; padding: 0 0 60px; }
   /* admin 헤더와 동일한 그라데이션 바 */
-  header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 0 24px; padding: 22px 32px; background: var(--grad); box-shadow: 0 2px 10px rgba(79,110,247,0.18); border: none; }
+  header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 0 24px -270px; width: calc(100% + 270px); padding: 0 32px 0 302px; min-height: 66px; background: linear-gradient(90deg, #6a86f2 0%, #8a7ff0 100%); box-shadow: 0 2px 10px rgba(79,110,247,0.18); border: none; }
   header h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.3px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.12); }
   header .sub { color: rgba(255,255,255,0.92); font-size: 13px; margin-top: 6px; }
   header > div:last-child { color: rgba(255,255,255,0.85) !important; }
@@ -143,19 +143,22 @@
 </head>
 <body>
 {% include "dashboard/_nav.html" %}
-<div class="container">
 
 <header>
-  <div>
-    <h1>정보과학회지 인사이트 대시보드 <span class="badge">V2 · 41개월</span></h1>
-    <div class="sub" id="header-sub">4개 연도 비교 분석 · DB 연동</div>
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <span class="badge">V2 · 41개월</span>
+    <span class="sub" id="header-sub" style="margin-top:0;">23-01 ~ 26-05 · 213편 본문 기반</span>
+    <span style="font-size:12px; color:rgba(255,255,255,0.85);">데이터: data_source/정보과학회지/</span>
   </div>
-  <div style="text-align: right; font-size: 12px; color: var(--muted);">
-    <a href="/admin/" style="display:inline-block; margin-bottom:10px; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">← 관리 화면으로</a><br>
-    데이터: data_source/정보과학회지/<br>
-    PDF 메타데이터 자동 추출
+  <div style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
+    <a href="/dashboard/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">📊 Dashboard</a>
+    <a href="/chat/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">🤖 Chat</a>
+    <a href="/chat/news/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">📰 News</a>
+    <a href="/admin/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">⚙ 관리</a>
   </div>
 </header>
+
+<div class="container">
 
 <!-- KPI Row -->
 <div class="kpi-row">
@@ -286,9 +289,10 @@ document.getElementById("kpi-pap").textContent = DATA.total_papers + "편";
 // 헤더 부제: DB의 실제 기간/편수로 채움
 (function(){
   const iss = DATA.issues || [];
-  const range = iss.length ? `${iss[0]} ~ ${iss[iss.length-1]}` : "";
+  const ab = s => String(s).slice(2);            // 2023-01 → 23-01
+  const range = iss.length ? `${ab(iss[0])} ~ ${ab(iss[iss.length-1])}` : "";
   document.getElementById("header-sub").textContent =
-    `${range} · ${DATA.total_papers}편 본문 기반 · DB 연동`;
+    `${range} · ${DATA.total_papers}편 본문 기반`;
 })();
 const lc = DATA.lifecycles;
 const cnt = (stage) => Object.values(lc).filter(v => v[0] === stage).length;
