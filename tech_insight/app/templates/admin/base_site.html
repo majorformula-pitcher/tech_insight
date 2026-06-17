@@ -215,6 +215,14 @@ fieldset.module {
 /* 라벨·입력칸 글자 키우기 (편집화면 한정) */
 .change-form .form-row label,
 .change-form .aligned label { font-size: 15px; }
+/* 조회 전용(readonly) 값 글자 크기를 라벨·요약과 15px 로 통일 */
+.change-form .form-row .readonly { font-size: 15px; line-height: 1.6; color: #2b2f3a; }
+/* 읽기 전용 필드의 입력 안내(help) 문구 숨김 — 수정이 안 되므로 불필요 */
+.change-form .field-authors .help,
+.change-form .field-affiliations .help,
+.change-form .field-metric .help { display: none; }
+/* 조회 전용 admin — 저장 버튼들 숨김(수정 안 함). 삭제 링크는 유지 */
+.change-form .submit-row input[type=submit] { display: none; }
 .change-form .aligned input[type=text],
 .change-form .aligned input[type=url],
 .change-form .vTextField,

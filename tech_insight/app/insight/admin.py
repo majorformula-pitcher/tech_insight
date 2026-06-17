@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.db import models
 from django.db.models import Count
 from django.forms import Textarea
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from .models import (
@@ -51,7 +52,10 @@ class DocumentAdmin(admin.ModelAdmin):
     date_hierarchy = "published_date"
     filter_horizontal = ("keywords",)
     inlines = [ChunkInline]
-    readonly_fields = ("created_at", "summary_bullets")
+    # 모든 값은 수집/동기화로 채워지므로 admin 에서는 읽기 전용(표시만)으로 둔다.
+    readonly_fields = ("source", "title", "authors", "affiliations",
+                       "published_date", "metric", "status", "file_path",
+                       "created_at", "summary_bullets", "url_link")
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -73,7 +77,7 @@ class DocumentAdmin(admin.ModelAdmin):
             "fields": ("summary_bullets",),
         }),
         ("출처 메타", {
-            "fields": ("url", "file_path"),
+            "fields": ("url_link", "file_path"),
             "description": "본문 텍스트는 챗봇·검색용으로 DB에만 보관하며 화면에 노출하지 않습니다. "
                            "원문 PDF는 저작권상 웹 제공하지 않습니다(요약만 제공).",
         }),
@@ -104,15 +108,23 @@ class DocumentAdmin(admin.ModelAdmin):
         # admin CSS가 ul 불릿을 죽이므로, 불릿 문자를 직접 넣고 flex로 정렬한다.
         rows = "".join(
             '<div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;">'
-            '<span style="color:#4f6ef7;font-size:20px;line-height:1.5;flex-shrink:0;">•</span>'
+            '<span style="color:#4f6ef7;font-size:16px;line-height:1.6;flex-shrink:0;">•</span>'
             f'<span style="flex:1;">{s}</span>'
             '</div>'
             for s in sentences
         )
         return mark_safe(
-            '<div style="font-size:17px;line-height:1.7;color:#2b2f3a;max-width:860px;'
+            '<div style="font-size:15px;line-height:1.7;color:#2b2f3a;max-width:860px;'
             'padding:6px 0;">' + rows + '</div>'
         )
+
+
+    @admin.display(description="원본 URL")
+    def url_link(self, obj):
+        """원본 URL을 클릭 가능한 링크로만 표시 (읽기 전용 — 편집칸 제거)."""
+        if not obj.url:
+            return "—"
+        return format_html('<a href="{0}" target="_blank" rel="noopener">{0}</a>', obj.url)
 
 
 # ── 출처별 프록시 admin 등록 (왼쪽 메뉴를 출처별로 분리) ──────────────
