@@ -221,9 +221,10 @@ function renderMarkdown(src){
     } else if(m = line.match(/^\s*[-*]\s+(.*)$/)){
       if(listType !== 'ul'){ closeList(); html += '<ul>'; listType = 'ul'; }
       html += '<li>'+inline(m[1])+'</li>';
-    } else if(m = line.match(/^\s*\d+\.\s+(.*)$/)){
-      if(listType !== 'ol'){ closeList(); html += '<ol>'; listType = 'ol'; }
-      html += '<li>'+inline(m[1])+'</li>';
+    } else if(m = line.match(/^\s*(\d+)\.\s+(.*)$/)){
+      // 번호 항목 사이에 불릿이 끼어 <ol>이 새로 열려도 소스의 실제 번호를 유지
+      if(listType !== 'ol'){ closeList(); html += '<ol start="'+m[1]+'">'; listType = 'ol'; }
+      html += '<li>'+inline(m[2])+'</li>';
     } else {
       closeList();
       html += '<p>'+inline(line)+'</p>';
