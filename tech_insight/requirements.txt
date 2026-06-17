@@ -25,3 +25,4 @@ numpy==2.4.6               # 임베딩 코사인 유사도 계산
 
 # ── 운영 서버 (배포용 — 로컬 개발에는 불필요) ──
 # gunicorn               # Oracle 등 리눅스 배포 시 설치: pip install gunicorn
+python-dotenv
