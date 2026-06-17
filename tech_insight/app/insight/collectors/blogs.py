@@ -59,7 +59,7 @@ def fetch_blog_crawl(name: str, listing: str, pattern: str, limit: int = 10) -> 
             "source_name": name,
             "rss_summary": "",
         })
-        if len(items) >= limit:
+        if limit and len(items) >= limit:   # limit 0 이하 = 상한 없음
             break
     return items
 

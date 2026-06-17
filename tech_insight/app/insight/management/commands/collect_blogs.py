@@ -31,7 +31,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--limit", type=int, default=8,
-                            help="블로그 소스당 최대 글 수 (기본 8)")
+                            help="블로그 소스당 최대 글 수 (기본 8, 0=무제한·피드 전체)")
         parser.add_argument("--max", type=int, default=0,
                             help="이번 실행 전체 최대 신규 건수 (0=무제한)")
         parser.add_argument("--no-summary", action="store_true",

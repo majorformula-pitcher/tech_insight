@@ -91,7 +91,8 @@ def fetch_feed(name: str, url: str, limit: int = 10) -> list[dict]:
         feed = feedparser.parse(url, request_headers=HEADERS)
     except Exception:  # noqa: BLE001
         return items
-    for e in feed.entries[:limit]:
+    entries = feed.entries if limit <= 0 else feed.entries[:limit]  # 0 이하 = 전체
+    for e in entries:
         link = (e.get("link") or "").strip()
         title = clean_title(e.get("title") or "")
         if not link or not title:
