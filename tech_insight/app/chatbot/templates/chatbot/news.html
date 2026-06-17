@@ -111,6 +111,7 @@
   .icon-btn{width:38px;height:38px;flex-shrink:0;border:1px solid var(--border);border-radius:10px;
     background:#fff;cursor:pointer;font-size:15px;color:var(--muted);}
   .icon-btn:hover{background:#f4f7ff;border-color:var(--accent);}
+  .icon-btn.cancel-edit:hover{background:#ffeaea;border-color:#ef4444;color:#ef4444;}
   .engine-info{margin-left:auto;font-size:12px;color:var(--muted);text-align:right;line-height:1.3;}
   .engine-info .ts{opacity:.7;}
   .edit-box{margin-bottom:12px;}
@@ -362,9 +363,7 @@ function editCard(id, btn){
         toast('수정되었습니다.');
       }else toast('수정 실패');
     });
-    card.dataset.editing='0'; btn.textContent='✏️';
-    card.querySelector('.edit-box').remove();
-    h3.style.display=''; ul.style.display='';
+    exitEdit(card, btn);
   }else{ // 편집 모드 진입
     card.dataset.editing='1'; btn.textContent='💾';
     const curTitle=h3.textContent.trim();
@@ -374,7 +373,21 @@ function editCard(id, btn){
     box.innerHTML=`<input class="edit-title" value="${esc(curTitle)}">
       <textarea class="edit-summary" rows="6">${esc(curSummary)}</textarea>`;
     ul.parentNode.insertBefore(box, ul.nextSibling);
+    // 저장 버튼 옆에 취소(X) 버튼 — 저장하지 않고 원래대로 되돌림
+    const cancel=document.createElement('button');
+    cancel.className='icon-btn cancel-edit'; cancel.title='취소'; cancel.textContent='✕';
+    cancel.onclick=()=>exitEdit(card, btn);
+    btn.parentNode.insertBefore(cancel, btn.nextSibling);
   }
+}
+
+// 편집 종료(저장·취소 공통): 편집칸·취소버튼 제거 후 원래 표시 복원
+function exitEdit(card, btn){
+  card.dataset.editing='0'; btn.textContent='✏️';
+  const box=card.querySelector('.edit-box'); if(box) box.remove();
+  const cancel=card.querySelector('.cancel-edit'); if(cancel) cancel.remove();
+  card.querySelector('h3').style.display='';
+  card.querySelector('.summary').style.display='';
 }
 
 // 2026-06-11 → 2026. 6. 11.
