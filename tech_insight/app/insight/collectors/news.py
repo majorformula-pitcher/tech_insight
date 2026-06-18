@@ -108,19 +108,33 @@ def fetch_feed(name: str, url: str, limit: int = 10) -> list[dict]:
 
 
 def extract_article(url: str, timeout: int = 15) -> dict:
-    """기사 URL에서 본문 + 대표 이미지를 함께 추출. {'body':..., 'image':...}"""
+    """기사 URL에서 제목 + 본문 + 대표 이미지를 함께 추출.
+    {'title':..., 'body':..., 'image':...}"""
     try:
         resp = requests.get(url, headers=HEADERS, timeout=timeout)
         resp.raise_for_status()
     except Exception:  # noqa: BLE001
-        return {"body": "", "image": ""}
+        return {"title": "", "body": "", "image": ""}
     soup = BeautifulSoup(resp.text, "html.parser")
     # 대표 이미지 (og:image)
     image = ""
     og_img = soup.find("meta", property="og:image")
     if og_img and og_img.get("content"):
         image = og_img["content"].strip()
-    return {"body": _extract_body_from_soup(soup), "image": image}
+    # 제목: og:title → twitter:title → <title> → <h1>
+    title = ""
+    og_t = (soup.find("meta", property="og:title")
+            or soup.find("meta", attrs={"name": "twitter:title"}))
+    if og_t and og_t.get("content"):
+        title = og_t["content"].strip()
+    if not title and soup.title and soup.title.string:
+        title = soup.title.string.strip()
+    if not title:
+        h1 = soup.find("h1")
+        if h1:
+            title = h1.get_text(" ", strip=True)
+    return {"title": clean_title(title), "body": _extract_body_from_soup(soup),
+            "image": image}
 
 
 def extract_body(url: str, timeout: int = 15) -> str:

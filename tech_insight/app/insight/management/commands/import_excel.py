@@ -31,6 +31,7 @@ HEADER_ALIASES = {
     "raw_text": "raw_text", "본문": "raw_text", "본문원문": "raw_text",
     "summary": "summary", "요약": "summary", "ai요약": "summary",
     "file_path": "file_path", "파일경로": "file_path", "경로": "file_path",
+    "id": "id", "아이디": "id",
 }
 
 
@@ -62,6 +63,10 @@ class Command(BaseCommand):
                             help="해당 출처의 기존 문서를 모두 삭제하고 새로 적재")
         parser.add_argument("--sheet", default=None,
                             help="읽을 시트 이름 (기본: 첫 시트)")
+        parser.add_argument("--summary-only", action="store_true",
+                            help="summary 열만 갱신하고 다른 열은 건드리지 않는다. "
+                                 "또 빈 summary 는 건너뛰어 기존 요약을 지우지 않는다. "
+                                 "(Cowork 요약을 안전하게 반영할 때 사용)")
 
     def handle(self, *args, **opts):
         try:
@@ -91,9 +96,9 @@ class Command(BaseCommand):
             field = HEADER_ALIASES.get(key)
             if field:
                 col_field[idx] = field
-        if "title" not in col_field.values():
+        if "title" not in col_field.values() and "id" not in col_field.values():
             raise CommandError(
-                f"필수 컬럼 'title' 을 찾지 못했습니다. 발견된 헤더: {header_row}"
+                f"필수 컬럼 'title' 또는 'id' 를 찾지 못했습니다. 발견된 헤더: {header_row}"
             )
 
         source, _ = Source.objects.get_or_create(
@@ -104,7 +109,8 @@ class Command(BaseCommand):
             n_del, _ = Document.objects.filter(source=source).delete()
             self.stdout.write(self.style.WARNING(f"[replace] 기존 문서 삭제: {n_del}건"))
 
-        n_new, n_upd, n_skip = 0, 0, 0
+        present = set(col_field.values())   # 엑셀에 실제 있는 컬럼만 갱신(나머지 기존값 보존)
+        n_new = n_upd = n_skip = 0
         for row in rows:
             data = {}
             for idx, field in col_field.items():
@@ -112,38 +118,72 @@ class Command(BaseCommand):
                 data[field] = "" if val is None else str(val).strip()
 
             title = data.get("title", "").strip()
-            if not title:
+            doc_id = data.get("id", "").strip()
+            if not title and not doc_id:
                 n_skip += 1
                 continue
 
-            published = parse_date(data.get("published_date"))
-            file_path = data.get("file_path", "").strip()
-            raw_text = data.get("raw_text", "")
+            # 엑셀에 있는 컬럼만 갱신값으로 모은다(없는 컬럼은 건드리지 않음)
+            updates = {}
+            if "title" in present and title:
+                updates["title"] = title[:500]
+            if "authors" in present:
+                updates["authors"] = data.get("authors", "")
+            if "affiliations" in present:
+                updates["affiliations"] = data.get("affiliations", "")
+            if "published_date" in present:
+                updates["published_date"] = parse_date(data.get("published_date"))
+            if "raw_text" in present:
+                updates["raw_text"] = data.get("raw_text", "")
+            if "summary" in present:
+                updates["summary"] = data.get("summary", "")
+            if "file_path" in present:
+                updates["file_path"] = data.get("file_path", "").strip()
 
-            fields = {
-                "authors": data.get("authors", ""),
-                "affiliations": data.get("affiliations", ""),
-                "published_date": published,
-                "raw_text": raw_text,
-                "summary": data.get("summary", ""),
-                "file_path": file_path,
-                "status": (
-                    Document.Status.ANALYZED if data.get("summary")
-                    else (Document.Status.EXTRACTED if raw_text else Document.Status.COLLECTED)
-                ),
-            }
+            # --summary-only: summary 열만 갱신, 빈칸이면 통째로 건너뜀(기존 요약 보존)
+            if opts["summary_only"]:
+                s = data.get("summary", "").strip()
+                if not s:
+                    n_skip += 1
+                    continue
+                updates = {"summary": s}
 
-            # 중복 판정: file_path 우선, 없으면 title
-            lookup = ({"source": source, "file_path": file_path}
-                      if file_path else {"source": source, "title": title})
-            obj = Document.objects.filter(**lookup).first()
+            # 매칭: id 우선 → file_path → title(출처 내)
+            obj = None
+            if doc_id.isdigit():
+                obj = Document.objects.filter(pk=int(doc_id)).first()
+            if obj is None:
+                fp = data.get("file_path", "").strip()
+                lookup = ({"source": source, "file_path": fp} if fp
+                          else {"source": source, "title": title})
+                obj = Document.objects.filter(**lookup).first()
+
             if obj:
-                for k, v in {**fields, "title": title}.items():
+                for k, v in updates.items():
                     setattr(obj, k, v)
+                if "summary" in updates or "raw_text" in updates:
+                    obj.status = (Document.Status.ANALYZED if (obj.summary or "").strip()
+                                  else (Document.Status.EXTRACTED if (obj.raw_text or "").strip()
+                                        else Document.Status.COLLECTED))
+                # 임베딩 원천은 title+summary 다. 둘 중 하나라도 바뀌면 옛 벡터가 낡으므로
+                # 비워서(embedding=None) 다음 embed_documents 가 자동으로 재임베딩하게 한다.
+                if "summary" in updates or "title" in updates:
+                    obj.embedding = None
+                    obj.embed_model = ""
                 obj.save()
                 n_upd += 1
+            elif opts["summary_only"]:
+                n_skip += 1   # summary-only 모드: 못 찾은 문서를 새로 만들지 않음
+            elif doc_id and not title:
+                n_skip += 1   # id로 못 찾았고 신규로 만들 제목도 없음
             else:
-                Document.objects.create(source=source, title=title, **fields)
+                cf = {k: v for k, v in updates.items() if k != "title"}
+                cf.setdefault("raw_text", "")
+                cf.setdefault("summary", "")
+                cf["status"] = (Document.Status.ANALYZED if cf.get("summary")
+                                else (Document.Status.EXTRACTED if cf.get("raw_text")
+                                      else Document.Status.COLLECTED))
+                Document.objects.create(source=source, title=title or "(제목 없음)", **cf)
                 n_new += 1
 
         wb.close()

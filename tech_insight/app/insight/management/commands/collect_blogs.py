@@ -36,6 +36,8 @@ class Command(BaseCommand):
                             help="이번 실행 전체 최대 신규 건수 (0=무제한)")
         parser.add_argument("--no-summary", action="store_true",
                             help="EXAONE 한국어 요약 생략 (본문만 저장)")
+        parser.add_argument("--only", default="",
+                            help="특정 출처만 수집 (부분일치, 예: Anthropic)")
 
     def handle(self, *args, **opts):
         per = opts["limit"]
@@ -43,7 +45,7 @@ class Command(BaseCommand):
         do_summary = not opts["no_summary"]
 
         n_new = n_dup = n_skip = n_err = 0
-        for name, items in fetch_all_blogs(per):
+        for name, items in fetch_all_blogs(per, only=opts["only"]):
             if hard_max and n_new >= hard_max:
                 break
             source, _ = Source.objects.get_or_create(
@@ -64,7 +66,7 @@ class Command(BaseCommand):
                         n_skip += 1
                         continue
 
-                title = (it.get("title") or "").strip()
+                title = (it.get("title") or "").strip() or (art.get("title") or "").strip()
                 summary = ""
                 if do_summary:
                     try:
