@@ -3,6 +3,7 @@
 RAG: retrieve(관련문서) → 프롬프트 구성 → llm.chat() → 답변 + 출처.
 """
 import json
+import re
 
 from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
@@ -13,13 +14,49 @@ from django.views.decorators.http import require_POST
 from insight.llm import chat, stream, current_provider
 from insight.retriever import retrieve
 
-SYSTEM_PROMPT = (
+# 분석형 프롬프트 — '분석/전망/영향' 등 해석을 요청한 질문에 사용
+ANALYSIS_PROMPT = (
     "너는 한국 기술 트렌드 분석가다. 한국어로만 답한다. "
-    "반드시 아래 제공된 근거 자료에 기반해 분석하라. "
+    "반드시 아래 제공된 근거 자료에 기반하라. "
     "'근거 논문'은 검증된 핵심 근거로, '참고 최신 뉴스'는 최신 동향 보조자료로 활용하되 "
     "논문 근거를 우선한다. 근거에 없는 내용은 추측하지 말고, 자료가 부족하면 그렇다고 밝혀라. "
     "답변은 ①핵심 분석 ②파급효과 ③근거가 된 자료 흐름 순으로 간결하게."
 )
+
+# 조회형 프롬프트 — '보여줘/알려줘/목록' 등 단순 조회 질문에 사용.
+# 의도적으로 '분석/파급효과'를 지시하지 않고, 오히려 금지한다(작은 모델이 끌려가지 않도록).
+LOOKUP_PROMPT = (
+    "너는 한국 기술 자료 안내자다. 한국어로만 답한다. "
+    "제공된 근거 자료에만 기반하고 추측하지 마라. 사용자가 자료 조회를 요청했다. "
+    "[형식 규칙 — 반드시 지킬 것] "
+    "분류 제목은 '## 논문 자료', '## 뉴스 자료'로 쓴다. "
+    "각 자료는 한 줄로, 정확히 이 형식으로만 쓴다: "
+    "`- **제목 (YYYY-MM-DD)** — 한 문장 요약`. "
+    "'제목:', '날짜:', '핵심요지:', '요약:' 같은 라벨을 줄마다 붙이지 말고, "
+    "한 자료를 여러 줄(불릿)로 쪼개지 마라. 한 자료 = 한 불릿이다. "
+    "논문을 먼저, 뉴스를 뒤에 둔다. "
+    "분석·파급효과·시사점·결론·총평 문장은 절대 쓰지 마라. 자료 나열로만 답한다. "
+    "[예시]\n"
+    "## 논문 자료\n"
+    "- **Introducing Anthropic's Transparency Hub (2025-02-27)** — 투명성 허브를 출범해 모델 평가·안전 테스트 방법론을 공개했다.\n"
+    "- **Anthropic signs CMS health tech pledge (2025-07-30)** — CMS와 헬스케어 데이터 공유 현대화를 위한 서약을 체결했다.\n"
+    "## 뉴스 자료\n"
+    "- **크라우드웍스, 피지컬AI 데이터랩 신설 (2026-05-29)** — 휴머노이드 로봇 데이터 수집·구축을 강화한다."
+)
+
+# 하위호환: 외부에서 SYSTEM_PROMPT 를 참조할 수 있으므로 기본값을 유지
+SYSTEM_PROMPT = ANALYSIS_PROMPT
+
+# 분석을 요청하는 신호 단어 — 있으면 분석, 없으면 단순 조회로 본다(조회 쪽으로 보수적)
+_ANALYSIS_KEYWORDS = (
+    "분석", "전망", "영향", "시사", "파급", "효과", "평가", "비교",
+    "예측", "함의", "인사이트", "의미", "왜", "해석", "정리해서 분석",
+)
+
+
+def _is_analysis(question: str) -> bool:
+    """질문이 해석/분석을 요구하는지 판단. 신호 단어가 없으면 단순 조회로 본다."""
+    return any(k in (question or "") for k in _ANALYSIS_KEYWORDS)
 
 
 @ensure_csrf_cookie
@@ -83,13 +120,78 @@ def news(request):
     })
 
 
+def _drop_weak(items, ratio=0.45, keep_min=3):
+    """상위 점수 대비 너무 약한(관련성 낮은) 항목을 잘라낸다. 단 최소 keep_min개는 유지.
+    items 는 score 내림차순으로 가정(retrieve 가 정렬해 반환)."""
+    if not items:
+        return items
+    top = items[0].get("score") or 0
+    if top <= 0:
+        return items
+    strong = [d for d in items if (d.get("score") or 0) >= ratio * top]
+    return strong if len(strong) >= keep_min else items[:keep_min]
+
+
+def _first_sentence(text):
+    """요약의 첫 문장(또는 첫 줄)만 한 줄 설명으로 쓴다.
+    일부 요약은 마침표 없이 줄바꿈으로 구분되므로 첫 줄을 먼저 취한다."""
+    t = (text or "").strip()
+    if not t:
+        return ""
+    t = t.splitlines()[0].strip()                  # 줄바꿈형 요약 → 첫 줄
+    parts = re.split(r"(?<=[.!?。])\s+", t)         # 한 줄 안에서 첫 문장
+    return (parts[0] if parts else t).strip()
+
+
+def _format_lookup_answer(docs, news):
+    """조회형 답변: 검색된 자료를 LLM 없이 그대로 목록 마크다운으로 만든다.
+    작은 모델이 20여 건을 옮기다 누락·환각하는 문제를 피하고 100% 정확하게 보여준다."""
+    def line(d):
+        date = str(d.get("published_date") or "").strip()
+        head = d["title"] + (f" ({date})" if date else "")
+        s = _first_sentence(d.get("summary"))
+        row = f"- **{head}**" + (f" — {s}" if s else "")
+        url = (d.get("url") or "").strip()
+        if url.startswith("http"):
+            row += f" [원문↗]({url})"      # 클릭 시 새 탭으로 원문 열기
+        return row
+
+    # 근거 풀은 '논문(paper)'과 '연구소 블로그(blog)'가 섞여 있으므로 유형별로 정확히 구분한다.
+    papers = [d for d in docs if d.get("source_type") == "paper"]
+    blogs = [d for d in docs if d.get("source_type") == "blog"]
+
+    parts = []
+
+    def section(title, items):
+        if items:
+            parts.append(("\n" if parts else "") + f"## {title}")
+            parts.extend(line(d) for d in items)
+
+    section("논문 자료", papers)
+    section("블로그 자료", blogs)
+    section("뉴스 자료", news)
+    return "\n".join(parts) if parts else "관련 저장 자료를 찾지 못했습니다."
+
+
 def _build_prompt(question, history=None, use_web=False):
     """질문으로 논문(검증 근거)+뉴스(최신 동향)[+웹(실시간)] 검색 후 프롬프트 구성.
-    (docs, news, web, user_prompt) 반환."""
-    docs = retrieve(question, top_k=8)                          # 논문 8편 (핵심 근거)
-    news = retrieve(question, top_k=6, source_type="news")      # 뉴스 후보
-    # 분석 중인 뉴스 자신이 근거로 딸려오는 자기참조 제거 후 4건만
-    news = [n for n in news if n["title"][:25] not in question][:4]
+    질문 유형(조회/분석)에 따라 개수·시스템 프롬프트·마무리 지시를 다르게 한다.
+    (docs, news, web, user_prompt, system_prompt) 반환."""
+    is_analysis = _is_analysis(question)
+    # 분석형은 LLM 컨텍스트 비용 때문에 핵심 근거에 집중(적게).
+    # 조회형은 LLM을 안 거치지만, 목록이 너무 길면 보기 어려우므로 '관련도 상위 N'으로 둔다.
+    # (관련도가 뚝 떨어지는 항목은 _drop_weak 가 추가로 잘라 더 짧아질 수 있다.)
+    doc_k, news_k, news_keep = (8, 6, 4) if is_analysis else (30, 20, 15)
+
+    docs = retrieve(question, top_k=doc_k)
+    news = retrieve(question, top_k=news_k, source_type="news")
+    # 분석 중인 뉴스 자신이 근거로 딸려오는 자기참조 제거
+    news = [n for n in news if n["title"][:25] not in question][:news_keep]
+
+    # 조회형에서 자료가 많을 때, 관련성이 뚝 떨어지는 약한 항목은 잘라낸다(목록 품질 유지).
+    if not is_analysis:
+        docs = _drop_weak(docs)
+        news = _drop_weak(news)
 
     web = []
     if use_web:
@@ -123,16 +225,25 @@ def _build_prompt(question, history=None, use_web=False):
         if turns:
             convo = "# 이전 대화\n" + "\n".join(turns) + "\n\n"
 
+    if is_analysis:
+        tail = ("위 자료에 기반해 분석하라. 신뢰도는 논문 > 뉴스 > 웹 순으로 가중하되, "
+                "웹 검색 결과는 최신 외부 동향을 보강하는 참고로만 활용하라.")
+    else:
+        tail = ("위 자료를 각 자료당 한 줄씩, '- **제목 (날짜)** — 한 문장 요약' 형식으로 "
+                "논문 먼저·뉴스 나중에 정리해 보여줘라. "
+                "라벨('제목:/날짜:/요약:')을 반복하거나 한 자료를 여러 줄로 쪼개지 말고, "
+                "분석·파급효과·총평은 쓰지 마라.")
+
     user_prompt = (
         f"# 근거 논문 요약 (검증된 핵심 근거)\n{context}\n\n"
         + (f"# 참고 최신 뉴스 (동향 보조자료)\n{news_ctx}\n\n" if news_ctx else "")
         + (f"# 웹 검색 결과 (실시간 외부 정보·미검증, 참고용)\n{web_ctx}\n\n" if web_ctx else "")
         + f"{convo}"
         + f"# 질문/뉴스\n{question}\n\n"
-        + "위 자료에 기반해 분석하라. 신뢰도는 논문 > 뉴스 > 웹 순으로 가중하되, "
-        + "웹 검색 결과는 최신 외부 동향을 보강하는 참고로만 활용하라."
+        + tail
     )
-    return docs, news, web, user_prompt
+    system_prompt = ANALYSIS_PROMPT if is_analysis else LOOKUP_PROMPT
+    return docs, news, web, user_prompt, system_prompt
 
 
 def _sources_of(docs, news=None, web=None):
@@ -141,8 +252,9 @@ def _sources_of(docs, news=None, web=None):
         {
             "title": d["title"],
             "published_date": str(d["published_date"]),
-            "meta": d["affiliations"],
-            "kind": "논문",
+            "meta": d["affiliations"] or d.get("source_name", ""),
+            "url": d.get("url", ""),
+            "kind": "블로그" if d.get("source_type") == "blog" else "논문",
             "score": d["score"],
         }
         for d in docs
@@ -152,6 +264,7 @@ def _sources_of(docs, news=None, web=None):
             "title": d["title"],
             "published_date": str(d["published_date"]),
             "meta": d["authors"],
+            "url": d.get("url", ""),
             "kind": "뉴스",
             "score": d["score"],
         }
@@ -162,6 +275,7 @@ def _sources_of(docs, news=None, web=None):
             "title": w["title"],
             "published_date": "",
             "meta": w["url"],
+            "url": w["url"],
             "kind": "웹",
             "score": 0,
         }
@@ -180,12 +294,16 @@ def ask(request):
     question = (payload.get("question") or "").strip()
     if not question:
         return JsonResponse({"error": "질문을 입력하세요."}, status=400)
-    docs, news, web, user_prompt = _build_prompt(
+    docs, news, web, user_prompt, system_prompt = _build_prompt(
         question, payload.get("history"), use_web=bool(payload.get("web")))
-    try:
-        answer = chat(SYSTEM_PROMPT, user_prompt, max_tokens=2000)
-    except Exception as e:  # noqa: BLE001
-        return JsonResponse({"error": f"LLM 호출 실패: {e}"}, status=502)
+    # 조회형은 LLM 없이 검색 결과를 그대로 목록화(정확·완전). 분석형만 LLM 호출.
+    if not _is_analysis(question):
+        answer = _format_lookup_answer(docs, news)
+    else:
+        try:
+            answer = chat(system_prompt, user_prompt, max_tokens=2000)
+        except Exception as e:  # noqa: BLE001
+            return JsonResponse({"error": f"LLM 호출 실패: {e}"}, status=502)
     return JsonResponse({
         "answer": answer,
         "sources": _sources_of(docs, news, web),
@@ -204,15 +322,23 @@ def ask_stream(request):
     if not question:
         return JsonResponse({"error": "질문을 입력하세요."}, status=400)
 
-    docs, news, web, user_prompt = _build_prompt(
+    docs, news, web, user_prompt, system_prompt = _build_prompt(
         question, payload.get("history"), use_web=bool(payload.get("web")))
+
+    analysis = _is_analysis(question)
 
     def event_stream():
         # 먼저 근거 출처를 한 번 보냄
         yield "event: sources\ndata: " + json.dumps(_sources_of(docs, news, web), ensure_ascii=False) + "\n\n"
-        # 그다음 답변 토큰을 흘려보냄
+        # 조회형: LLM 없이 검색 결과를 그대로 목록화해 한 번에 보낸다(정확·완전).
+        if not analysis:
+            answer = _format_lookup_answer(docs, news)
+            yield "event: token\ndata: " + json.dumps({"t": answer}, ensure_ascii=False) + "\n\n"
+            yield "event: done\ndata: {}\n\n"
+            return
+        # 분석형: LLM 토큰을 흘려보냄
         try:
-            for piece in stream(SYSTEM_PROMPT, user_prompt, max_tokens=2000):
+            for piece in stream(system_prompt, user_prompt, max_tokens=2000):
                 yield "event: token\ndata: " + json.dumps({"t": piece}, ensure_ascii=False) + "\n\n"
         except Exception as e:  # noqa: BLE001
             yield "event: error\ndata: " + json.dumps({"error": str(e)}, ensure_ascii=False) + "\n\n"

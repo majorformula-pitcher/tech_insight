@@ -18,7 +18,7 @@
   header .prov{color:#fff;font-size:12px;background:rgba(255,255,255,.22);padding:5px 12px;border-radius:999px;}
   header a{color:#fff;text-decoration:none;font-weight:600;font-size:13px;
     background:rgba(255,255,255,.18);padding:7px 14px;border-radius:8px;margin-left:8px;}
-  .wrap{max-width:1296px;margin:0 auto;padding:24px 20px 60px;}
+  .wrap{max-width:1555px;margin:0 auto;padding:24px 20px 60px;}  /* 1296 → 120% (예상 질문 칩이 한 줄에 더 들어가도록) */
   .intro{color:var(--muted);font-size:15px;margin-bottom:16px;}
   .ask-box{background:var(--panel);border:1px solid var(--border);border-radius:14px;
     padding:16px;box-shadow:0 1px 8px rgba(80,100,180,.06);margin-bottom:20px;}
@@ -44,6 +44,14 @@
   .md p{margin:9px 0;}
   .md ul,.md ol{margin:8px 0;padding-left:26px;}
   .md li{margin:5px 0;}
+  /* '요약:' 줄: 불릿 대신 '→' 마커 + 한 칸 들여쓰기 */
+  .md li.sub{list-style:none;margin-left:8px;color:#475569;}
+  .md li.sub::before{content:'→ ';color:#6a86f2;font-weight:700;}
+  /* 답변 본문 속 원문 링크를 작은 버튼처럼 */
+  .md a{display:inline-block;font-size:12px;font-weight:600;color:var(--accent);
+        background:#eef2ff;border-radius:6px;padding:0 7px;margin-left:5px;
+        text-decoration:none;vertical-align:middle;white-space:nowrap;}
+  .md a:hover{background:#dbe3ff;}
   .md strong{font-weight:700;color:#1f2433;}
   .md code{background:#eef2ff;color:#4338ca;padding:1px 6px;border-radius:5px;font-size:13.5px;}
   .sources{background:#f4f7ff;border:1px solid var(--border);border-radius:14px;
@@ -52,11 +60,14 @@
   .src{padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;}
   .src:last-child{border-bottom:none;}
   .src .t{font-weight:600;}
+  .src .t a{color:inherit;text-decoration:none;}
+  .src .t a:hover{text-decoration:underline;color:var(--accent);}
   .src .m{color:var(--muted);font-size:12px;}
   .kind{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px;
     margin-right:6px;vertical-align:middle;}
   .kind-paper{background:#eef2ff;color:var(--accent);}
   .kind-news{background:#fff0e6;color:#d97706;}
+  .kind-blog{background:#f0e9ff;color:#7c3aed;}
   .kind-web{background:#e6f7ec;color:#15803d;}
   .web-toggle{display:inline-flex;align-items:center;gap:7px;font-size:14px;color:#3a4256;
     cursor:pointer;user-select:none;}
@@ -91,6 +102,9 @@
       <span class="ex">AGI 반도체 양산이 미치는 영향은?</span>
       <span class="ex">최근 LLM 에이전트 연구 동향은?</span>
       <span class="ex">5G/네트워크 연구는 왜 줄어드나?</span>
+      <span class="ex">저장된 데이터 중에 Anthropic 모델 관련 데이터 보여줘</span>
+      <span class="ex">저장된 데이터 중에 openai 사업 관련 데이터 보여줘</span>
+      <span class="ex">저장된 데이터 중 LLM 관련 데이터 보여줘</span>
     </div>
     <div class="row">
       <button id="send">분석 요청</button>
@@ -118,15 +132,27 @@ let history = [];
 function renderSources(sources){
   if(!sources || !sources.length){ $('sources').style.display='none'; return; }
   const np = sources.filter(s=>s.kind==='논문').length;
+  const nb = sources.filter(s=>s.kind==='블로그').length;
   const nn = sources.filter(s=>s.kind==='뉴스').length;
   const nw = sources.filter(s=>s.kind==='웹').length;
-  const label = '근거가 된 자료 (논문 '+np+(nn?' · 뉴스 '+nn:'')+(nw?' · 웹 '+nw:'')+')';
+  const counts = [np?'논문 '+np:'', nb?'블로그 '+nb:'', nn?'뉴스 '+nn:'', nw?'웹 '+nw:'']
+                 .filter(Boolean).join(' · ');
+  const label = '근거가 된 자료 ('+counts+')';
   let h = '<h3>'+label+'</h3>';
   sources.forEach(s => {
-    const cls = s.kind==='뉴스' ? 'kind-news' : (s.kind==='웹' ? 'kind-web' : 'kind-paper');
+    const cls = s.kind==='뉴스' ? 'kind-news'
+              : s.kind==='웹' ? 'kind-web'
+              : s.kind==='블로그' ? 'kind-blog'
+              : 'kind-paper';
     const badge = '<span class="kind '+cls+'">'+escapeHtml(s.kind||'논문')+'</span>';
     const meta = [escapeHtml(s.published_date), escapeHtml(s.meta||'')].filter(Boolean).join(' · ');
-    h += '<div class="src"><div class="t">'+badge+escapeHtml(s.title)+'</div>'+
+    // URL(http/https)이 있으면 제목을 새 탭 링크로 — 없으면(예: 정보과학회지) 일반 텍스트
+    const hasUrl = s.url && /^https?:\/\//i.test(s.url);
+    const safeUrl = hasUrl ? escapeHtml(s.url).replace(/"/g, '&quot;') : '';
+    const titleHtml = hasUrl
+      ? '<a href="'+safeUrl+'" target="_blank" rel="noopener">'+escapeHtml(s.title)+'</a>'
+      : escapeHtml(s.title);
+    h += '<div class="src"><div class="t">'+badge+titleHtml+'</div>'+
          '<div class="m">'+meta+'</div></div>';
   });
   $('sources').innerHTML = h;
@@ -204,6 +230,9 @@ function escapeHtml(s){
 // 챗봇 답변용 경량 마크다운 → HTML (### 제목, **굵게**, `코드`, -/1. 목록)
 function renderMarkdown(src){
   const inline = s => escapeHtml(s)
+    // [텍스트](url) → 새 탭 링크 (escapeHtml 이후라 url의 &는 이미 &amp;)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
+             '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+?)`/g, '<code>$1</code>');
   let html = '', listType = null;
@@ -220,7 +249,9 @@ function renderMarkdown(src){
       html += '<'+tag+'>'+inline(m[2])+'</'+tag+'>';
     } else if(m = line.match(/^\s*[-*]\s+(.*)$/)){
       if(listType !== 'ul'){ closeList(); html += '<ul>'; listType = 'ul'; }
-      html += '<li>'+inline(m[1])+'</li>';
+      // '요약:'으로 시작하는 항목은 불릿 대신 '→'로 들여써서 보여준다(제목 하위 줄).
+      const sub = /^요약\s*[:：]/.test(m[1]) ? ' class="sub"' : '';
+      html += '<li'+sub+'>'+inline(m[1])+'</li>';
     } else if(m = line.match(/^\s*(\d+)\.\s+(.*)$/)){
       // 번호 항목 사이에 불릿이 끼어 <ol>이 새로 열려도 소스의 실제 번호를 유지
       if(listType !== 'ol'){ closeList(); html += '<ol start="'+m[1]+'">'; listType = 'ol'; }

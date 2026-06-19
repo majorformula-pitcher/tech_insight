@@ -21,6 +21,10 @@ STOPWORDS = {
     "한다", "에서", "으로", "관련", "대한", "위한", "통해", "있는", "되는",
     "the", "and", "for", "with", "this", "that", "은", "는", "이", "가", "을", "를",
     "어떤", "무엇", "영향", "효과", "전망", "현황", "동향", "분석", "연구",
+    # 조회 질문에 흔히 섞이는 지시·범용어 (이 코퍼스에선 변별력이 없어 잡음만 됨)
+    "데이터", "자료", "정보", "내용", "저장", "저장된", "중에", "중", "관해", "대해",
+    "알려줘", "알려", "보여줘", "보여", "출력", "정리", "검색", "찾아", "찾아줘",
+    "최근", "관련된", "에는", "에서의",
 }
 
 # 동의어/유사어 — 질문에 왼쪽 단어가 있으면 오른쪽 단어들도 검색에 포함
@@ -42,9 +46,29 @@ SYNONYMS = {
 RRF_K = 60   # RRF 상수 (클수록 상위 순위 가중 완화)
 
 
+# 한국어 조사 — 토큰 끝에 붙으면 떼어내 어간으로 만든다('데이터를'→'데이터'). 긴 것 우선.
+_JOSA = ("으로서", "으로써", "에서는", "에서도", "으로", "에서", "에게", "라고", "이라",
+         "에는", "에도", "께서", "처럼", "보다", "마저", "조차", "까지", "부터",
+         "은", "는", "이", "가", "을", "를", "에", "의", "로", "와", "과", "도", "만", "랑")
+
+
+def _strip_josa(w: str) -> str:
+    """한글 토큰 끝의 조사를 제거(어간이 2자 이상 남을 때만)."""
+    if re.fullmatch(r"[가-힣]+", w):
+        for j in _JOSA:
+            if w.endswith(j) and len(w) - len(j) >= 2:
+                return w[:-len(j)]
+    return w
+
+
 def _tokens(text: str) -> list[str]:
     words = re.findall(r"[가-힣A-Za-z0-9]+", text.lower())
-    return [w for w in words if len(w) >= 2 and w not in STOPWORDS]
+    out = []
+    for w in words:
+        w = _strip_josa(w)
+        if len(w) >= 2 and w not in STOPWORDS:
+            out.append(w)
+    return out
 
 
 def _expand(tokens: set[str]) -> set[str]:
@@ -119,12 +143,18 @@ def retrieve(query: str, top_k: int = 5, source_type=None) -> list[dict]:
                 .filter(source__type__in=types)
                 .exclude(summary="")
                 .values("id", "title", "summary", "authors", "affiliations",
-                        "published_date", "embedding"))
+                        "published_date", "url", "source__type", "source__name",
+                        "embedding"))
     if not cand:
         return []
 
-    vec = _vector_ranked(query, cand)         # [(id, sim)]
-    kw = _keyword_ranked(query, cand)         # [(id, score)]
+    # 잡음·조사를 제거한 핵심어로 검색(벡터 임베딩도 정제 질문 기준).
+    # 핵심어가 하나도 없으면(전부 불용어) 원문으로 폴백.
+    core = _tokens(query)
+    clean_q = " ".join(core) if core else query
+
+    vec = _vector_ranked(clean_q, cand)       # [(id, sim)] — 정제 질문으로 임베딩
+    kw = _keyword_ranked(query, cand)         # [(id, score)] — 내부에서 _tokens 로 정제됨
 
     # RRF 결합: 각 랭킹에서의 순위로 점수화 후 합산
     fused = {}
@@ -147,6 +177,9 @@ def retrieve(query: str, top_k: int = 5, source_type=None) -> list[dict]:
             "authors": d["authors"],
             "affiliations": d["affiliations"],
             "published_date": d["published_date"],
+            "url": d.get("url", ""),
+            "source_type": d.get("source__type", ""),
+            "source_name": d.get("source__name", ""),
             "score": round(fused[doc_id], 5),
         })
     return results
