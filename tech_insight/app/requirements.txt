@@ -20,3 +20,9 @@ openpyxl==3.1.5
 feedparser==6.0.12
 requests==2.34.2
 beautifulsoup4==4.15.0
+
+# 수치 연산(검색 임베딩 유사도)
+numpy==2.5.0
+
+# .env 로딩
+python-dotenv==1.2.2

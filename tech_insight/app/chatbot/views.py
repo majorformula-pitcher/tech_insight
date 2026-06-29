@@ -12,14 +12,18 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from insight.llm import chat, stream, current_provider
-from insight.retriever import retrieve
+from insight.retriever import retrieve, _tokens
 
 # 분석형 프롬프트 — '분석/전망/영향' 등 해석을 요청한 질문에 사용
 ANALYSIS_PROMPT = (
     "너는 한국 기술 트렌드 분석가다. 한국어로만 답한다. "
-    "반드시 아래 제공된 근거 자료에 기반하라. "
-    "'근거 논문'은 검증된 핵심 근거로, '참고 최신 뉴스'는 최신 동향 보조자료로 활용하되 "
-    "논문 근거를 우선한다. 근거에 없는 내용은 추측하지 말고, 자료가 부족하면 그렇다고 밝혀라. "
+    "먼저 질문(또는 뉴스)의 핵심 주제·대상을 정확히 파악하고, 분석은 반드시 그 주제에 직접 연결하라. "
+    "아래 제공된 근거 자료에만 기반하라. "
+    "'근거 논문'은 검증된 핵심 근거로, '참고 최신 뉴스'는 최신 동향 보조자료로 활용하되 논문 근거를 우선한다. "
+    "중요: 제공된 근거가 질문 주제와 직접 관련이 적으면, 억지로 끼워 맞추지 마라. "
+    "그럴 때는 '이 주제에 직접 관련된 자료가 부족하다'고 먼저 분명히 밝히고, "
+    "관련 있는 자료만 골라 제한적으로만 분석하라. 주제와 무관한 자료로 일반론을 채우지 마라. "
+    "근거에 없는 내용은 추측하지 마라. "
     "답변은 ①핵심 분석 ②파급효과 ③근거가 된 자료 흐름 순으로 간결하게."
 )
 
@@ -132,6 +136,35 @@ def _drop_weak(items, ratio=0.45, keep_min=3):
     return strong if len(strong) >= keep_min else items[:keep_min]
 
 
+# 검색 관련도 판정에서 무시할 범용어 — 어디에나 나와서 '관련 있음' 신호가 못 된다.
+_GENERIC_TERMS = {
+    "ai", "인공지능", "딥러닝", "머신러닝", "llm", "모델", "기술", "시스템",
+    "데이터", "정보", "연구", "개발", "기업", "산업", "서비스", "플랫폼",
+    "활용", "도입", "적용", "솔루션", "디지털", "혁신", "성능", "효율",
+    "비용", "사업", "시장", "출시", "공개", "발표", "생성", "생성형",
+    # 질문/뉴스 문장에 흔히 섞이는 구조·지시어
+    "우리", "논문", "뉴스", "근거", "파급효과", "분석해줘", "위해",
+}
+
+
+def _evidence_weak(question, docs, top=6):
+    """내부 핵심 근거(논문/블로그)가 질문 주제와 직접 관련이 약한지 판단.
+    질문의 '변별력 있는' 핵심어(범용어 제외)가 상위 근거 제목·요약에 거의 안 나오면 약함.
+    → 약하면 웹 검색으로 보강한다."""
+    key = [t for t in set(_tokens(question))
+           if t not in _GENERIC_TERMS and len(t) >= 2]
+    if not key:
+        return False          # 변별 핵심어가 없으면 판단 불가 → 강제하지 않음
+    if not docs:
+        return True           # 내부 근거가 아예 없으면 약함
+    hits = 0
+    for d in docs[:top]:
+        hay = (str(d.get("title", "")) + " " + str(d.get("summary", ""))).lower()
+        if any(k in hay for k in key):
+            hits += 1
+    return hits < 2           # 상위 근거 중 핵심어 포함이 2건 미만이면 약함
+
+
 def _first_sentence(text):
     """요약의 첫 문장(또는 첫 줄)만 한 줄 설명으로 쓴다.
     일부 요약은 마침표 없이 줄바꿈으로 구분되므로 첫 줄을 먼저 취한다."""
@@ -192,6 +225,14 @@ def _build_prompt(question, history=None, use_web=False):
     if not is_analysis:
         docs = _drop_weak(docs)
         news = _drop_weak(news)
+
+    # 분석형인데 내부 근거가 질문 주제와 약하면 웹 검색을 자동으로 켠다.
+    # 주신호: 뉴스 카드 분석('[뉴스]'로 시작)은 코퍼스에 없는 특정 주제가 많아 웹이 필요.
+    # 보조신호: 핵심어가 상위 근거에 거의 없으면(_evidence_weak) 약함으로 본다.
+    # (조회형은 LLM·웹을 안 쓰고, 사용자가 이미 웹을 켰으면 그대로 둔다.)
+    is_news = question.lstrip().startswith("[뉴스]")
+    if is_analysis and not use_web and (is_news or _evidence_weak(question, docs)):
+        use_web = True
 
     web = []
     if use_web:
@@ -301,7 +342,7 @@ def ask(request):
         answer = _format_lookup_answer(docs, news)
     else:
         try:
-            answer = chat(system_prompt, user_prompt, max_tokens=2000)
+            answer = chat(system_prompt, user_prompt, max_tokens=4000)
         except Exception as e:  # noqa: BLE001
             return JsonResponse({"error": f"LLM 호출 실패: {e}"}, status=502)
     return JsonResponse({
@@ -338,7 +379,7 @@ def ask_stream(request):
             return
         # 분석형: LLM 토큰을 흘려보냄
         try:
-            for piece in stream(system_prompt, user_prompt, max_tokens=2000):
+            for piece in stream(system_prompt, user_prompt, max_tokens=4000):
                 yield "event: token\ndata: " + json.dumps({"t": piece}, ensure_ascii=False) + "\n\n"
         except Exception as e:  # noqa: BLE001
             yield "event: error\ndata: " + json.dumps({"error": str(e)}, ensure_ascii=False) + "\n\n"
