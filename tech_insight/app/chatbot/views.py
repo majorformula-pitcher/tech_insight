@@ -99,7 +99,8 @@ def news(request):
         qs = qs.filter(category=category)
     if query:
         qs = qs.filter(title__icontains=query)
-    qs = qs.order_by("-published_date", "-created_at")[:2000]
+    # 요약/등록 시각(created_at) 내림차순 — 카드에 표시되는 시각과 정렬 순서를 일치시킨다.
+    qs = qs.order_by("-created_at", "-id")[:2000]
 
     items = [{
         "id": d.id,
