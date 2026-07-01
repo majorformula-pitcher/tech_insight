@@ -15,7 +15,7 @@ from django.core.management.base import BaseCommand
 
 from insight.collectors.blogs import fetch_all_blogs
 from insight.collectors.news import extract_article
-from insight.llm import chat
+from insight.llm import chat, current_provider, current_model
 from insight.models import Source, Document
 
 SUMMARY_SYSTEM = (
@@ -43,6 +43,11 @@ class Command(BaseCommand):
         per = opts["limit"]
         hard_max = opts["max"]
         do_summary = not opts["no_summary"]
+        # 요약에 실제로 쓰인 엔진명(claude/gemini/로컬모델)을 Document.engine에 기록
+        engine_label = ""
+        if do_summary:
+            prov = current_provider()
+            engine_label = {"gemini": "Gemini", "claude": "Claude"}.get(prov, current_model())
 
         n_new = n_dup = n_skip = n_err = 0
         for name, items in fetch_all_blogs(per, only=opts["only"]):
@@ -89,7 +94,7 @@ class Command(BaseCommand):
                     summary=summary,
                     image=image[:1000] if image else "",
                     url=url,
-                    engine="EXAONE",
+                    engine=(engine_label if summary else ""),
                     status=(Document.Status.ANALYZED if summary
                             else Document.Status.EXTRACTED),
                 )
