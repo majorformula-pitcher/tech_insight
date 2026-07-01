@@ -84,6 +84,12 @@ class Command(BaseCommand):
                         n_err += 1
                         self.stderr.write(self.style.WARNING(
                             f"  요약 실패: {title[:30]} :: {e}"))
+                    if do_summary and not summary:
+                        # 요약 실패(429 등) → 죽은 행을 남기지 않고 건너뛴다.
+                        # DB에 저장 안 하므로 URL 중복에 안 걸려 다음 실행 때 자동 재시도(자가치유).
+                        # (--no-summary 모드는 애초에 요약을 안 하므로 이 조건에 안 걸림)
+                        n_skip += 1
+                        continue
 
                 Document.objects.create(
                     source=source,
