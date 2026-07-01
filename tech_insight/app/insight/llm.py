@@ -104,45 +104,70 @@ def _chat_claude(system: str, user: str, max_tokens: int) -> str:
     return "".join(parts).strip()
 
 
-def _chat_gemini(system: str, user: str, max_tokens: int) -> str:
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY 환경변수가 필요합니다.")
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+# Gemini 폴백 체인 — 앞 모델이 429(무료 한도 소진)면 다음 모델로 넘어간다.
+# 여러 모델의 무료 쿼터를 합쳐 쓰는 효과. GEMINI_MODELS 로 순서 커스터마이즈 가능.
+_GEMINI_DEFAULT_CHAIN = [
+    "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
+]
+
+
+def _gemini_chain() -> list:
+    """시도할 Gemini 모델 순서. GEMINI_MODELS(쉼표구분) > GEMINI_MODEL(맨 앞) > 기본 체인."""
+    env = os.environ.get("GEMINI_MODELS", "").strip()
+    if env:
+        return [m.strip() for m in env.split(",") if m.strip()]
+    primary = os.environ.get("GEMINI_MODEL", "").strip()
+    if not primary:
+        return list(_GEMINI_DEFAULT_CHAIN)
+    return [primary] + [m for m in _GEMINI_DEFAULT_CHAIN if m != primary]
+
+
+def _gemini_call_once(api_key: str, model: str, system: str, user: str, max_tokens: int) -> str:
     body = json.dumps({
         "system_instruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
         "generationConfig": {
             "maxOutputTokens": max_tokens,
             "temperature": 0.3,
-            # 2.5-flash 등 thinking 모델이 출력 예산을 사고에 쓰지 않도록 끈다(요약 잘림 방지).
+            # thinking 모델이 출력 예산을 사고에 쓰지 않도록 끈다(요약 잘림 방지).
             "thinkingConfig": {"thinkingBudget": 0},
         },
     }).encode("utf-8")
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{model}:generateContent?key={api_key}")
-    # 429(무료 한도 초과) 시 잠깐 쉬었다 재시도 — 배치 요약이 죽은 행을 만들지 않도록.
-    data = None
-    for attempt in range(4):
-        req = urllib.request.Request(
-            url, data=body, headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            break
-        except urllib.error.HTTPError as e:
-            if e.code == 429 and attempt < 3:
-                ra = e.headers.get("Retry-After")
-                wait = int(ra) if (ra and str(ra).isdigit()) else 20 * (attempt + 1)
-                time.sleep(min(wait, 65))
-                continue
-            raise
+    req = urllib.request.Request(
+        url, data=body, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
     cands = data.get("candidates", [])
     parts = cands[0].get("content", {}).get("parts", []) if cands else []
     text = "".join(p.get("text", "") for p in parts).strip()
     um = data.get("usageMetadata", {})
     _log_usage(model, um.get("promptTokenCount", 0), um.get("candidatesTokenCount", 0))
     return text
+
+
+def _chat_gemini(system: str, user: str, max_tokens: int) -> str:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY 환경변수가 필요합니다.")
+    chain = _gemini_chain()
+    last_err = None
+    # 체인을 2바퀴 돈다. 1바퀴가 전부 429면 잠깐 쉬고(RPM 일시 소진 대비) 한 번 더.
+    for rnd in range(2):
+        for model in chain:
+            try:
+                return _gemini_call_once(api_key, model, system, user, max_tokens)
+            except urllib.error.HTTPError as e:
+                last_err = e
+                if e.code == 429:
+                    continue          # 한도 소진 → 다음 모델로
+                raise                 # 그 외 오류는 즉시 전파
+        time.sleep(20)
+    raise last_err if last_err else RuntimeError("Gemini 호출 실패")
 
 
 def chat(system: str, user: str, max_tokens: int = 600) -> str:
@@ -250,7 +275,7 @@ def current_model() -> str:
     if prov == "claude":
         return os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
     if prov == "gemini":
-        return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+        return _gemini_chain()[0]
     return get_ollama_model()
 
 
