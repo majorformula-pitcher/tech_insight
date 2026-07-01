@@ -46,7 +46,7 @@ def _log_usage(model: str, input_tokens: int, output_tokens: int) -> None:
 
 
 def _chat_ollama(system: str, user: str, max_tokens: int) -> str:
-    model = os.environ.get("OLLAMA_MODEL", "exaone3.5")
+    model = get_ollama_model()
     base = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
     body = json.dumps({
         "model": model,
@@ -104,7 +104,7 @@ def chat(system: str, user: str, max_tokens: int = 600) -> str:
 
 
 def _stream_ollama(system: str, user: str, max_tokens: int):
-    model = os.environ.get("OLLAMA_MODEL", "exaone3.5")
+    model = get_ollama_model()
     base = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
     body = json.dumps({
         "model": model,
@@ -193,4 +193,51 @@ def current_model() -> str:
     """현재 provider가 실제로 사용하는 LLM 모델명."""
     if current_provider() == "claude":
         return os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+    return get_ollama_model()
+
+
+# ── 런타임 Ollama 모델 전환 ────────────────────────────────────────
+# 재시작 없이 UI에서 모델을 바꾸기 위해, 선택 모델을 파일에 저장한다.
+# (파일 방식이라 gunicorn 다중 워커 간에도 값이 일관된다.)
+_OLLAMA_OVERRIDE_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)), "runtime_ollama_model.txt")
+
+
+def get_ollama_model() -> str:
+    """현재 Ollama 모델명. override 파일이 있으면 우선, 없으면 환경변수/기본값."""
+    try:
+        with open(_OLLAMA_OVERRIDE_FILE, encoding="utf-8") as f:
+            name = f.read().strip()
+            if name:
+                return name
+    except OSError:
+        pass
     return os.environ.get("OLLAMA_MODEL", "exaone3.5")
+
+
+def set_ollama_model(name: str) -> None:
+    """Ollama 모델 override를 파일에 저장(즉시 다음 요청부터 적용)."""
+    with open(_OLLAMA_OVERRIDE_FILE, "w", encoding="utf-8") as f:
+        f.write((name or "").strip())
+
+
+def _is_chat_model(name: str) -> bool:
+    """임베딩 전용 모델(bge-m3 등, 채팅 미지원)을 걸러내기 위한 판정."""
+    base = name.split(":")[0].lower()
+    embed = os.environ.get("EMBED_MODEL", "bge-m3").split(":")[0].lower()
+    if base == embed:
+        return False
+    return not any(k in base for k in ("bge", "embed", "nomic-embed", "e5-", "gte-"))
+
+
+def list_ollama_models() -> list:
+    """로컬 Ollama에 설치된 '채팅' 모델명 목록(임베딩 모델 제외). 실패 시 빈 리스트."""
+    base = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
+    try:
+        req = urllib.request.Request(f"{base}/api/tags")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        names = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+        return [n for n in names if _is_chat_model(n)]
+    except Exception:  # noqa: BLE001
+        return []

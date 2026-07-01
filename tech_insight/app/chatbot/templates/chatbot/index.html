@@ -83,7 +83,8 @@
 <header>
   <h1 style="cursor:pointer;" onclick="location.reload()" title="새로고침">🤖 기술 트렌드 분석 챗봇</h1>
   <div style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
-    <span class="prov" style="margin-right:6px;">엔진: {{ provider }} · {{ model }}</span>
+    <span class="prov" id="engine-badge" data-provider="{{ provider }}" data-model="{{ model }}"
+          style="margin-right:6px;">엔진: {{ provider }} · <span id="engine-model">{{ model }}</span></span>
     <a href="/dashboard/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">📊 Dashboard</a>
     <a href="/chat/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">🤖 Chat</a>
     <a href="/chat/news/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">📰 News</a>
@@ -264,6 +265,38 @@ function renderMarkdown(src){
   closeList();
   return html;
 }
+
+// ── 엔진(모델) 실시간 전환 — 배지 클릭 시 설치된 Ollama 모델을 순환 ──
+(function(){
+  const badge=document.getElementById('engine-badge');
+  if(!badge) return;
+  const modelSpan=document.getElementById('engine-model');
+  const TOKEN=document.getElementById('csrf-token').value;
+  if(badge.dataset.provider!=='ollama') return;   // claude 등은 전환 대상 아님
+  let models=[], cur=badge.dataset.model;
+  badge.style.cursor='pointer';
+  badge.title='클릭하면 다음 설치 모델로 전환';
+  fetch('/chat/api/models/').then(r=>r.json()).then(d=>{
+    models=d.models||[]; cur=d.current||cur; modelSpan.textContent=cur;
+    if(models.length<2) badge.title='설치된 Ollama 모델이 하나뿐입니다';
+  }).catch(()=>{});
+  badge.onclick=async ()=>{
+    if(models.length<2) return;
+    const next=models[(models.indexOf(cur)+1)%models.length];
+    const old=modelSpan.textContent;
+    modelSpan.textContent='전환 중…';
+    try{
+      const r=await fetch('/chat/api/set-model/',{
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':TOKEN},
+        body:JSON.stringify({model:next})
+      });
+      const d=await r.json();
+      if(r.ok && d.ok){ cur=d.model; modelSpan.textContent=cur; }
+      else{ modelSpan.textContent=old; alert('전환 실패: '+(d.error||'오류')); }
+    }catch(e){ modelSpan.textContent=old; alert('전환 실패'); }
+  };
+})();
 </script>
 </body>
 </html>

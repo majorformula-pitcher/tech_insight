@@ -28,6 +28,8 @@ tech_insight/data_source/
 *.log
 _*.txt
 *.bat
+# 런타임 모델 전환 상태(각 환경별 로컬 상태 — 커밋 제외)
+runtime_ollama_model.txt
 
 # ===== OS / 에디터 =====
 .DS_Store

@@ -9,9 +9,10 @@ from django.http import JsonResponse, StreamingHttpResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 
-from insight.llm import chat, stream, current_provider, current_model
+from insight.llm import (chat, stream, current_provider, current_model,
+                         set_ollama_model, list_ollama_models)
 from insight.retriever import retrieve, _tokens
 
 # 분석형 프롬프트 — '분석/전망/영향' 등 해석을 요청한 질문에 사용
@@ -355,6 +356,38 @@ def ask(request):
         "sources": _sources_of(docs, news, web),
         "provider": current_provider(),
     })
+
+
+@require_GET
+def api_models(request):
+    """설치된 Ollama 모델 목록 + 현재 선택 모델. (엔진 토글용)"""
+    provider = current_provider()
+    models = list_ollama_models() if provider == "ollama" else []
+    return JsonResponse({
+        "provider": provider,
+        "current": current_model(),
+        "models": models,
+    })
+
+
+@require_POST
+def api_set_model(request):
+    """Ollama 모델을 런타임 전환(재시작 불필요). provider가 ollama일 때만 유효."""
+    if current_provider() != "ollama":
+        return JsonResponse({"error": "현재 provider가 ollama가 아닙니다."}, status=400)
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({"error": "잘못된 요청"}, status=400)
+    model = (payload.get("model") or "").strip()
+    if not model:
+        return JsonResponse({"error": "model이 필요합니다."}, status=400)
+    # 실제 설치된 모델만 허용(오타·미설치 방지)
+    installed = list_ollama_models()
+    if installed and model not in installed:
+        return JsonResponse({"error": f"설치되지 않은 모델: {model}"}, status=400)
+    set_ollama_model(model)
+    return JsonResponse({"ok": True, "model": model})
 
 
 @require_POST
