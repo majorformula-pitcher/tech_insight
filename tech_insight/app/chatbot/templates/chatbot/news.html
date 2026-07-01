@@ -117,6 +117,7 @@
   .edit-box{margin-bottom:12px;}
   .edit-box input,.edit-box textarea{width:100%;border:1px solid var(--accent);border-radius:8px;
     padding:8px 10px;font-size:14px;margin-bottom:6px;font-family:inherit;}
+  .edit-box textarea{min-height:120px;line-height:1.6;overflow:hidden;resize:vertical;}
   .empty{text-align:center;color:var(--muted);padding:50px;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2b2f3a;color:#fff;
     padding:10px 20px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;z-index:50;}
@@ -371,8 +372,13 @@ function editCard(id, btn){
     h3.style.display='none'; ul.style.display='none';
     const box=document.createElement('div'); box.className='edit-box';
     box.innerHTML=`<input class="edit-title" value="${esc(curTitle)}">
-      <textarea class="edit-summary" rows="6">${esc(curSummary)}</textarea>`;
+      <textarea class="edit-summary">${esc(curSummary)}</textarea>`;
     ul.parentNode.insertBefore(box, ul.nextSibling);
+    // 본문(요약) 길이에 맞춰 textarea 높이 자동 조절 — 카드 본문 세로 길이만큼 펼침
+    const ta=box.querySelector('.edit-summary');
+    const autosize=()=>{ ta.style.height='auto'; ta.style.height=ta.scrollHeight+'px'; };
+    autosize();
+    ta.addEventListener('input', autosize);
     // 저장 버튼 옆에 취소(X) 버튼 — 저장하지 않고 원래대로 되돌림
     const cancel=document.createElement('button');
     cancel.className='icon-btn cancel-edit'; cancel.title='취소'; cancel.textContent='✕';
