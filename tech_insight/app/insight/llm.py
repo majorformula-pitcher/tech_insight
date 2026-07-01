@@ -187,3 +187,10 @@ def stream(system: str, user: str, max_tokens: int = 700):
 
 def current_provider() -> str:
     return os.environ.get("LLM_PROVIDER", "ollama").lower()
+
+
+def current_model() -> str:
+    """현재 provider가 실제로 사용하는 LLM 모델명."""
+    if current_provider() == "claude":
+        return os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+    return os.environ.get("OLLAMA_MODEL", "exaone3.5")

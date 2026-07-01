@@ -11,7 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from insight.llm import chat, stream, current_provider
+from insight.llm import chat, stream, current_provider, current_model
 from insight.retriever import retrieve, _tokens
 
 # 분석형 프롬프트 — '분석/전망/영향' 등 해석을 요청한 질문에 사용
@@ -85,7 +85,7 @@ def index(request):
                   .filter(source__type=Source.Type.NEWS)
                   .count())
     return render(request, "chatbot/index.html", {
-        "provider": current_provider(), "prefill": prefill,
+        "provider": current_provider(), "model": current_model(), "prefill": prefill,
         "paper_count": paper_count, "news_count": news_count,
     })
 
