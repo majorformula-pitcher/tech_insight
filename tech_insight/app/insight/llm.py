@@ -24,6 +24,11 @@ _PRICING = {
     "claude-opus-4-8": (5.0, 25.0),
     "claude-opus-4-7": (5.0, 25.0),
     "claude-haiku-4-5": (1.0, 5.0),
+    # Gemini는 무료 티어 사용 전제 → 비용 0 (토큰 수만 로깅해 한도 모니터링).
+    "gemini-2.5-flash": (0.0, 0.0),
+    "gemini-2.0-flash": (0.0, 0.0),
+    "gemini-flash-latest": (0.0, 0.0),
+    "gemini-3.5-flash": (0.0, 0.0),
 }
 _USD_TO_KRW = 1400  # 참고용 환산 (실제 청구는 Anthropic 인보이스 기준)
 
@@ -95,11 +100,42 @@ def _chat_claude(system: str, user: str, max_tokens: int) -> str:
     return "".join(parts).strip()
 
 
+def _chat_gemini(system: str, user: str, max_tokens: int) -> str:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY 환경변수가 필요합니다.")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    body = json.dumps({
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user}]}],
+        "generationConfig": {
+            "maxOutputTokens": max_tokens,
+            "temperature": 0.3,
+            # 2.5-flash 등 thinking 모델이 출력 예산을 사고에 쓰지 않도록 끈다(요약 잘림 방지).
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }).encode("utf-8")
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"{model}:generateContent?key={api_key}")
+    req = urllib.request.Request(
+        url, data=body, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        data = json.loads(resp.read().decode("utf-8"))
+    cands = data.get("candidates", [])
+    parts = cands[0].get("content", {}).get("parts", []) if cands else []
+    text = "".join(p.get("text", "") for p in parts).strip()
+    um = data.get("usageMetadata", {})
+    _log_usage(model, um.get("promptTokenCount", 0), um.get("candidatesTokenCount", 0))
+    return text
+
+
 def chat(system: str, user: str, max_tokens: int = 600) -> str:
     """설정된 provider로 LLM 호출. 실패 시 예외."""
     provider = os.environ.get("LLM_PROVIDER", "ollama").lower()
     if provider == "claude":
         return _chat_claude(system, user, max_tokens)
+    if provider == "gemini":
+        return _chat_gemini(system, user, max_tokens)
     return _chat_ollama(system, user, max_tokens)
 
 
@@ -181,6 +217,9 @@ def stream(system: str, user: str, max_tokens: int = 700):
     provider = os.environ.get("LLM_PROVIDER", "ollama").lower()
     if provider == "claude":
         yield from _stream_claude(system, user, max_tokens)
+    elif provider == "gemini":
+        # Gemini는 요약(비스트리밍) 용도라 통째로 한 번에 내보낸다.
+        yield _chat_gemini(system, user, max_tokens)
     else:
         yield from _stream_ollama(system, user, max_tokens)
 
@@ -191,8 +230,11 @@ def current_provider() -> str:
 
 def current_model() -> str:
     """현재 provider가 실제로 사용하는 LLM 모델명."""
-    if current_provider() == "claude":
+    prov = current_provider()
+    if prov == "claude":
         return os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
+    if prov == "gemini":
+        return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     return get_ollama_model()
 
 
