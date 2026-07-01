@@ -14,6 +14,8 @@ LLM 어댑터 — 로컬(Ollama/EXAONE)과 Claude API를 환경변수로 전환�
 """
 import json
 import os
+import time
+import urllib.error
 import urllib.request
 
 
@@ -117,10 +119,22 @@ def _chat_gemini(system: str, user: str, max_tokens: int) -> str:
     }).encode("utf-8")
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{model}:generateContent?key={api_key}")
-    req = urllib.request.Request(
-        url, data=body, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+    # 429(무료 한도 초과) 시 잠깐 쉬었다 재시도 — 배치 요약이 죽은 행을 만들지 않도록.
+    data = None
+    for attempt in range(4):
+        req = urllib.request.Request(
+            url, data=body, headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 3:
+                ra = e.headers.get("Retry-After")
+                wait = int(ra) if (ra and str(ra).isdigit()) else 20 * (attempt + 1)
+                time.sleep(min(wait, 65))
+                continue
+            raise
     cands = data.get("candidates", [])
     parts = cands[0].get("content", {}).get("parts", []) if cands else []
     text = "".join(p.get("text", "") for p in parts).strip()
