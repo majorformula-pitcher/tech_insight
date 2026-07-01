@@ -21,6 +21,9 @@ feedparser==6.0.12
 requests==2.34.2
 beautifulsoup4==4.15.0
 
+# 실시간 웹 검색 (DuckDuckGo, '웹 검색 포함' 옵션)
+ddgs==9.14.4
+
 # 수치 연산(검색 임베딩 유사도)
 numpy==2.5.0
 
