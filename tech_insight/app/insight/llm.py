@@ -28,6 +28,8 @@ _PRICING = {
     "claude-haiku-4-5": (1.0, 5.0),
     # Gemini는 무료 티어 사용 전제 → 비용 0 (토큰 수만 로깅해 한도 모니터링).
     "gemini-2.5-flash": (0.0, 0.0),
+    "gemini-2.5-flash-lite": (0.0, 0.0),
+    "gemini-flash-lite-latest": (0.0, 0.0),
     "gemini-2.0-flash": (0.0, 0.0),
     "gemini-flash-latest": (0.0, 0.0),
     "gemini-3.5-flash": (0.0, 0.0),
@@ -106,7 +108,7 @@ def _chat_gemini(system: str, user: str, max_tokens: int) -> str:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY 환경변수가 필요합니다.")
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
     body = json.dumps({
         "system_instruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
@@ -248,7 +250,7 @@ def current_model() -> str:
     if prov == "claude":
         return os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6")
     if prov == "gemini":
-        return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
     return get_ollama_model()
 
 
