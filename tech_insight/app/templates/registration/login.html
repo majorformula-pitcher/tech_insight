@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로그인 · Tech Insight</title>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+    font-family:"Pretendard","Noto Sans KR","Malgun Gothic",-apple-system,sans-serif;
+    background:linear-gradient(135deg,#5b8df5 0%,#8a7ff0 100%);}
+  .card{background:#fff;width:360px;max-width:92vw;border-radius:20px;padding:36px 32px;
+    box-shadow:0 12px 40px rgba(40,50,90,.25);}
+  h1{margin:0 0 4px;font-size:22px;font-weight:800;color:#2b2f3a;}
+  .sub{color:#6b7280;font-size:13px;margin-bottom:22px;}
+  label{display:block;font-size:13px;font-weight:600;color:#3a4256;margin:14px 0 6px;}
+  input[type=text],input[type=password]{width:100%;border:1px solid #e3e8f5;border-radius:10px;
+    padding:12px 14px;font-size:15px;}
+  input:focus{outline:none;border-color:#5b8df5;box-shadow:0 0 0 3px rgba(91,141,245,.15);}
+  button{width:100%;margin-top:22px;background:linear-gradient(90deg,#5b8df5,#8a7ff0);color:#fff;
+    border:none;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;}
+  button:hover{opacity:.93;}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;font-size:13px;
+    border-radius:8px;padding:10px 12px;margin-bottom:6px;}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🤖 Tech Insight</h1>
+    <div class="sub">로그인이 필요합니다</div>
+    {% if form.errors %}
+      <div class="err">아이디 또는 비밀번호가 올바르지 않습니다.</div>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <label for="id_username">아이디</label>
+      <input type="text" name="username" id="id_username" autocomplete="username" autofocus required>
+      <label for="id_password">비밀번호</label>
+      <input type="password" name="password" id="id_password" autocomplete="current-password" required>
+      <input type="hidden" name="next" value="{{ request.GET.next }}">
+      <button type="submit">로그인</button>
+    </form>
+  </div>
+</body>
+</html>

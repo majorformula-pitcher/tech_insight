@@ -89,6 +89,11 @@
     <a href="/chat/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">🤖 Chat</a>
     <a href="/chat/news/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">📰 News</a>
     <a href="/admin/" style="display:inline-block; color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.22); padding:7px 14px; border-radius:8px; text-decoration:none;">⚙ 관리</a>
+    {% if user.is_authenticated %}
+    <form method="post" action="/logout/" style="display:inline; margin:0;">{% csrf_token %}
+      <button type="submit" title="로그아웃" style="color:#fff; font-weight:600; font-size:13px; background:rgba(255,255,255,0.28); padding:7px 12px; border:none; border-radius:8px; cursor:pointer;">👤 {{ user.username }} · 로그아웃</button>
+    </form>
+    {% endif %}
   </div>
 </header>
 

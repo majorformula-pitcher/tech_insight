@@ -28,5 +28,11 @@
   <div class="nv-menu">
     <a href="/dashboard/" class="{% if active == 'journal' %}active{% endif %}">정보과학회지</a>
     <a href="/dashboard/unified/" class="{% if active == 'unified' %}active{% endif %}">통합</a>
+    <a href="/chat/">🤖 챗봇</a>
+    {% if user.is_authenticated %}
+    <form method="post" action="/logout/" style="margin:0;">{% csrf_token %}
+      <button type="submit" style="display:block; width:100%; text-align:left; padding:12px 24px; color:#6b7280; background:none; border:none; border-left:3px solid transparent; font-size:14px; font-weight:600; cursor:pointer;">👤 {{ user.username }} · 로그아웃</button>
+    </form>
+    {% endif %}
   </div>
 </nav>

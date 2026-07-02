@@ -57,6 +57,15 @@ _extra = os.environ.get("DJANGO_CSRF_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra.split(",") if o.strip()]
 
 
+# ── 로그인/로그아웃 ─────────────────────────────────────────────
+LOGIN_URL = "/login/"
+LOGIN_REDIRECT_URL = "/chat/"
+LOGOUT_REDIRECT_URL = "/login/"
+# 로그인 강제 여부: 서버(DEBUG=0) 기본 ON, 로컬(DEBUG=1) 기본 OFF.
+# 나중에 로컬 PC에서도 켜려면 start.bat 등에 REQUIRE_LOGIN=1 을 설정하면 된다.
+REQUIRE_LOGIN = os.environ.get("REQUIRE_LOGIN", "0" if DEBUG else "1") == "1"
+
+
 # Application definition
 
 INSTALLED_APPS = [
@@ -79,6 +88,8 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # 미인증 사용자를 로그인 페이지로 (REQUIRE_LOGIN=1일 때만 강제 — 서버 기본 ON)
+    'config.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
