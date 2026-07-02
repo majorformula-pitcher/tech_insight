@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.db import models
 from django.db.models import Count
 from django.forms import Textarea
+from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
@@ -147,8 +148,17 @@ class HFDocumentAdmin(DocumentAdmin):
 @admin.register(NewsDocument)
 class NewsDocumentAdmin(DocumentAdmin):
     source_name = "뉴스"
-    list_display = ("title", "published_date", "category", "status", "authors")
+    # 뉴스 목록은 '등록일(created_at)' 기준으로 표시·정렬 — /chat/news/ 카드와 동일.
+    list_display = ("title", "reg_date", "category", "status", "authors")
     list_filter = ("status", "category")
+    ordering = ("-created_at",)
+    date_hierarchy = "created_at"
+
+    @admin.display(description="등록일", ordering="created_at")
+    def reg_date(self, obj):
+        if not obj.created_at:
+            return "—"
+        return timezone.localtime(obj.created_at).strftime("%Y-%m-%d %H:%M")
 
 
 # 연구소 블로그 — 출처별 개별 메뉴 (공통 컬럼)
