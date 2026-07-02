@@ -161,11 +161,9 @@ def _chat_gemini(system: str, user: str, max_tokens: int) -> str:
         for model in chain:
             try:
                 return _gemini_call_once(api_key, model, system, user, max_tokens)
-            except urllib.error.HTTPError as e:
+            except Exception as e:  # noqa: BLE001  429·503·타임아웃 등 → 다음 모델
                 last_err = e
-                if e.code == 429:
-                    continue          # 한도 소진 → 다음 모델로
-                raise                 # 그 외 오류는 즉시 전파
+                continue
         time.sleep(20)
     raise last_err if last_err else RuntimeError("Gemini 호출 실패")
 
@@ -180,14 +178,14 @@ def gemini_analysis(system: str, user: str, max_tokens: int):
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise GeminiExhausted("GEMINI_API_KEY 미설정")
+    last = None
     for model in _gemini_chain():
         try:
             return _gemini_call_once(api_key, model, system, user, max_tokens), model
-        except urllib.error.HTTPError as e:
-            if e.code == 429:
-                continue          # 이 모델 한도 초과 → 다음 모델
-            raise                 # 그 외 오류는 전파
-    raise GeminiExhausted("모든 Gemini 모델 한도 초과")
+        except Exception as e:  # noqa: BLE001  429·503·타임아웃 등 → 다음 모델로
+            last = e
+            continue
+    raise GeminiExhausted(f"모든 Gemini 모델 실패: {last}")
 
 
 def chat(system: str, user: str, max_tokens: int = 600) -> str:
