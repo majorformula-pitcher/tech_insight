@@ -12,6 +12,8 @@ import re
 
 import numpy as np
 
+from django.db.models import Q
+
 from insight.embeddings import embed_one
 from insight.models import Document, Source
 
@@ -125,11 +127,12 @@ def _vector_ranked(query, cand):
     return [(ids[i], float(sims[i])) for i in order]
 
 
-def retrieve(query: str, top_k: int = 5, source_type=None) -> list[dict]:
+def retrieve(query: str, top_k: int = 5, source_type=None, filters=None) -> list[dict]:
     """
     질문과 관련된 문서 top_k개를 반환 (벡터+키워드 하이브리드).
     기본 근거 풀은 '논문 + 연구소 블로그'. source_type="news" 면 뉴스를 검색한다.
     source_type 은 문자열 또는 리스트 모두 허용.
+    filters(dict, 선택): year·month·category·keyword 로 후보를 먼저 거른다(구조화 조건).
     각 항목: {id, title, summary, authors, affiliations, published_date, score, ...}
     """
     if not query.strip():
@@ -139,12 +142,24 @@ def retrieve(query: str, top_k: int = 5, source_type=None) -> list[dict]:
         source_type = [Source.Type.PAPER, Source.Type.BLOG]   # 근거 = 논문 + 블로그
     types = [source_type] if isinstance(source_type, str) else list(source_type)
 
-    cand = list(Document.objects
-                .filter(source__type__in=types)
-                .exclude(summary="")
-                .values("id", "title", "summary", "authors", "affiliations",
-                        "published_date", "url", "source__type", "source__name",
-                        "embedding"))
+    qs = Document.objects.filter(source__type__in=types).exclude(summary="")
+    # 구조화 조건(연도·월·카테고리·키워드)으로 후보를 먼저 제한 — 임베딩은 필터를 못 하므로 여기서 처리.
+    if filters:
+        if filters.get("year"):
+            qs = qs.filter(published_date__year=filters["year"])
+        if filters.get("month"):
+            qs = qs.filter(published_date__month=filters["month"])
+        # category(AI/Robot/…)는 뉴스 전용 필드 → 뉴스 검색일 때만 적용(논문/블로그엔 없음)
+        if filters.get("category") and Source.Type.NEWS in types:
+            qs = qs.filter(category__iexact=filters["category"])
+        if filters.get("keyword"):
+            kw = filters["keyword"]
+            qs = qs.filter(Q(title__icontains=kw) | Q(authors__icontains=kw)
+                           | Q(summary__icontains=kw))
+
+    cand = list(qs.values("id", "title", "summary", "authors", "affiliations",
+                          "published_date", "url", "source__type", "source__name",
+                          "embedding"))
     if not cand:
         return []
 

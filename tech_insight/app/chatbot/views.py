@@ -225,8 +225,16 @@ def _build_prompt(question, history=None, use_web=False):
     # (관련도가 뚝 떨어지는 항목은 _drop_weak 가 추가로 잘라 더 짧아질 수 있다.)
     doc_k, news_k, news_keep = (8, 6, 4) if is_analysis else (30, 20, 15)
 
-    docs = retrieve(question, top_k=doc_k)
-    news = retrieve(question, top_k=news_k, source_type="news")
+    # LLM으로 질문에서 검색 조건(연도·월·카테고리·키워드·개수)과 의미 질의를 추출.
+    # 실패 시 (원문, {})로 폴백하므로 검색은 항상 동작한다.
+    from insight.query_parser import parse_query
+    semantic_query, qfilters = parse_query(question)
+    limit = qfilters.get("limit")
+    if limit and not is_analysis:      # 조회형에서 'N개만' 요청 시 개수 제한
+        doc_k = news_k = news_keep = limit
+
+    docs = retrieve(semantic_query, top_k=doc_k, filters=qfilters)
+    news = retrieve(semantic_query, top_k=news_k, source_type="news", filters=qfilters)
     # 분석 중인 뉴스 자신이 근거로 딸려오는 자기참조 제거
     news = [n for n in news if n["title"][:25] not in question][:news_keep]
 
