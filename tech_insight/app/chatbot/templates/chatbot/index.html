@@ -129,8 +129,11 @@ document.querySelectorAll('.ex').forEach(e => e.onclick = () => { $('q').value =
 
 // 대화 이력 (후속 질문 맥락용)
 let history = [];
+// 마지막 근거 자료(인용 번호 클릭 시 조회용)
+let lastSources = [];
 
 function renderSources(sources){
+  lastSources = sources || [];
   if(!sources || !sources.length){ $('sources').style.display='none'; return; }
   const np = sources.filter(s=>s.kind==='논문').length;
   const nb = sources.filter(s=>s.kind==='블로그').length;
@@ -154,7 +157,7 @@ function renderSources(sources){
     const titleHtml = hasUrl
       ? '<a href="'+safeUrl+'" target="_blank" rel="noopener">'+escapeHtml(s.title)+'</a>'
       : escapeHtml(s.title);
-    h += '<div class="src"><div class="t">'+badge+titleHtml+'</div>'+
+    h += '<div class="src" data-cite="'+escapeHtml(s.cite||'')+'"><div class="t">'+badge+titleHtml+'</div>'+
          '<div class="m">'+meta+'</div></div>';
   });
   $('sources').innerHTML = h;
@@ -252,6 +255,28 @@ $('send').onclick = () => {
   $('q').value = '';          // 분석 요청 시 입력칸 비우기
   runAnalysis(q, false);
 };
+
+// 답변 속 인용 번호([논문 4] 등) 클릭 → 해당 근거로 이동
+// URL 있으면 새 탭으로 원문, 없으면(정보과학회지 등) 근거 목록의 해당 카드로 스크롤+하이라이트
+$('answer').addEventListener('click', (e) => {
+  const a = e.target.closest('.cite-ref');
+  if(!a) return;
+  e.preventDefault();
+  const cite = a.dataset.cite;
+  const src = lastSources.find(s => s.cite === cite);
+  if(src && src.url && /^https?:\/\//i.test(src.url)){
+    window.open(src.url, '_blank', 'noopener');
+    return;
+  }
+  const card = document.querySelector('#sources .src[data-cite="'+cite+'"]');
+  if(card){
+    card.scrollIntoView({behavior:'smooth', block:'center'});
+    const orig = card.style.backgroundColor;
+    card.style.transition = 'background-color .3s';
+    card.style.backgroundColor = '#fff3cd';
+    setTimeout(()=>{ card.style.backgroundColor = orig; }, 1800);
+  }
+});
 function escapeHtml(s){
   return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 }
@@ -263,7 +288,10 @@ function renderMarkdown(src){
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
              '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+?)`/g, '<code>$1</code>');
+    .replace(/`([^`]+?)`/g, '<code>$1</code>')
+    // 인용 번호 [논문 4]/[뉴스 2]/[웹 3] → 클릭 가능한 참조 (근거 자료로 이동)
+    .replace(/\[(논문|뉴스|웹)\s*(\d+)\]/g,
+             '<a class="cite-ref" data-cite="$1 $2" style="color:#4f6ef7;cursor:pointer;font-weight:600;">[$1 $2]</a>');
   let html = '', listType = null;
   const closeList = () => { if(listType){ html += '</'+listType+'>'; listType = null; } };
   for(const raw of (src||'').split('\n')){
