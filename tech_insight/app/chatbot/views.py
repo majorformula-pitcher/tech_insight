@@ -407,23 +407,55 @@ def ask_stream(request):
         question, payload.get("history"), use_web=bool(payload.get("web")))
 
     analysis = _is_analysis(question)
+    allow_claude = bool(payload.get("allow_claude"))
+
+    def sse(ev, obj):
+        return f"event: {ev}\ndata: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
 
     def event_stream():
         # 먼저 근거 출처를 한 번 보냄
-        yield "event: sources\ndata: " + json.dumps(_sources_of(docs, news, web), ensure_ascii=False) + "\n\n"
+        yield sse("sources", _sources_of(docs, news, web))
         # 조회형: LLM 없이 검색 결과를 그대로 목록화해 한 번에 보낸다(정확·완전).
         if not analysis:
-            answer = _format_lookup_answer(docs, news)
-            yield "event: token\ndata: " + json.dumps({"t": answer}, ensure_ascii=False) + "\n\n"
-            yield "event: done\ndata: {}\n\n"
+            yield sse("token", {"t": _format_lookup_answer(docs, news)})
+            yield sse("done", {})
             return
-        # 분석형: LLM 토큰을 흘려보냄
+        # 분석형
+        if current_provider() != "claude":
+            # 로컬(ollama/exaone) 등 — 설정된 provider로 그대로 스트리밍 (하이브리드 미적용)
+            try:
+                for piece in stream(system_prompt, user_prompt, max_tokens=4000):
+                    yield sse("token", {"t": piece})
+            except Exception as e:  # noqa: BLE001
+                yield sse("error", {"error": str(e)})
+            yield sse("done", {})
+            return
+        # provider=claude(서버): Gemini(무료) 먼저 → 모든 모델 한도초과면 사용자 확인 후 Claude(유료)
+        from insight.llm import gemini_analysis, GeminiExhausted, _stream_claude
         try:
-            for piece in stream(system_prompt, user_prompt, max_tokens=4000):
-                yield "event: token\ndata: " + json.dumps({"t": piece}, ensure_ascii=False) + "\n\n"
+            text, gmodel = gemini_analysis(system_prompt, user_prompt, 4000)
+        except GeminiExhausted:
+            if not allow_claude:
+                # 사용자에게 Claude 사용 여부를 물어본다 (프론트에서 예/아니오)
+                yield sse("confirm_claude", {
+                    "message": "Gemini 무료 한도가 모두 소진되었습니다. Claude(유료) API로 분석하시겠습니까?"})
+                return
+            # 사용자가 승인 → Claude 스트리밍
+            yield sse("engine", {"engine": "Claude"})
+            try:
+                for piece in _stream_claude(system_prompt, user_prompt, 4000):
+                    yield sse("token", {"t": piece})
+            except Exception as e:  # noqa: BLE001
+                yield sse("error", {"error": str(e)})
+            yield sse("done", {})
+            return
         except Exception as e:  # noqa: BLE001
-            yield "event: error\ndata: " + json.dumps({"error": str(e)}, ensure_ascii=False) + "\n\n"
-        yield "event: done\ndata: {}\n\n"
+            yield sse("error", {"error": str(e)})
+            return
+        # Gemini 성공 → 통째로 전송 (Gemini 어댑터는 비스트리밍)
+        yield sse("engine", {"engine": "Gemini", "model": gmodel})
+        yield sse("token", {"t": text})
+        yield sse("done", {})
 
     resp = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
     resp["Cache-Control"] = "no-cache"

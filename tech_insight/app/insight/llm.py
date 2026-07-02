@@ -170,6 +170,26 @@ def _chat_gemini(system: str, user: str, max_tokens: int) -> str:
     raise last_err if last_err else RuntimeError("Gemini 호출 실패")
 
 
+class GeminiExhausted(Exception):
+    """Gemini 폴백 체인의 모든 모델이 429(무료 한도 초과)이거나 키가 없음."""
+
+
+def gemini_analysis(system: str, user: str, max_tokens: int):
+    """분석용 Gemini 호출 — 체인을 1회만 빠르게 순회(대기 없음, 인터랙티브용).
+    첫 성공 모델의 (text, model)을 반환. 전부 429거나 키가 없으면 GeminiExhausted."""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise GeminiExhausted("GEMINI_API_KEY 미설정")
+    for model in _gemini_chain():
+        try:
+            return _gemini_call_once(api_key, model, system, user, max_tokens), model
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                continue          # 이 모델 한도 초과 → 다음 모델
+            raise                 # 그 외 오류는 전파
+    raise GeminiExhausted("모든 Gemini 모델 한도 초과")
+
+
 def chat(system: str, user: str, max_tokens: int = 600) -> str:
     """설정된 provider로 LLM 호출. 실패 시 예외."""
     provider = os.environ.get("LLM_PROVIDER", "ollama").lower()

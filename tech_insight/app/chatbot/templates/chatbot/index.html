@@ -160,23 +160,22 @@ function renderSources(sources){
   $('sources').style.display = 'block';
 }
 
-$('send').onclick = async () => {
-  const q = $('q').value.trim();
-  if(!q){ $('q').focus(); return; }
-  $('q').value = '';          // 분석 요청 시 입력칸 비우기
+async function runAnalysis(q, allowClaude){
   $('send').disabled = true;
   $('loading').style.display = 'block';
   $('answer').style.display = 'none';
   $('sources').style.display = 'none';
   $('answer').innerHTML = '<div class="q-echo">' + escapeHtml(q) + '</div>' +
-                          '<h3>분석 결과</h3><span id="ans-text"></span>';
+                          '<h3>분석 결과</h3>' +
+                          '<div id="engine-note" style="font-size:12px;color:#6b7280;margin-bottom:8px;"></div>' +
+                          '<div id="ans-text"></div>';
 
   let answerText = '';
   try{
     const res = await fetch('/chat/ask-stream/', {
       method:'POST',
       headers:{'Content-Type':'application/json','X-CSRFToken':document.getElementById('csrf-token').value},
-      body: JSON.stringify({question:q, history, web: $('web-search').checked})
+      body: JSON.stringify({question:q, history, web: $('web-search').checked, allow_claude: !!allowClaude})
     });
     if(!res.ok){
       const d=await res.json().catch(()=>({}));
@@ -187,6 +186,7 @@ $('send').onclick = async () => {
     const decoder = new TextDecoder();
     let buf = '';
     let firstToken = true;
+    const show = ()=>{ $('loading').style.display='none'; $('answer').style.display='block'; };
     while(true){
       const {done, value} = await reader.read();
       if(done) break;
@@ -199,23 +199,43 @@ $('send').onclick = async () => {
         const dataLine = (chunk.match(/^data: (.*)$/m)||[])[1] || '{}';
         let data; try{ data = JSON.parse(dataLine); }catch(e){ continue; }
         if(ev === 'sources'){ renderSources(data); }
+        else if(ev === 'engine'){
+          show();
+          const label = data.engine === 'Gemini'
+            ? '🔹 Gemini(' + (data.model||'') + ') 무료 API로 분석'
+            : '🔸 Claude 유료 API로 분석';
+          const en=$('engine-note'); if(en) en.textContent = label;
+        }
         else if(ev === 'token'){
-          if(firstToken){ $('loading').style.display='none'; $('answer').style.display='block'; firstToken=false; }
-          // 답변은 아래로 계속 쌓이기만 하고, 스크롤은 사용자가 자유롭게 제어 (자동 스크롤 없음)
+          if(firstToken){ show(); firstToken=false; }
           answerText += data.t;
           $('ans-text').textContent = answerText;
+        }
+        else if(ev === 'confirm_claude'){
+          // Gemini 전 모델 한도 초과 → 사용자에게 Claude 사용 여부 확인
+          show();
+          $('ans-text').innerHTML =
+            '<div style="padding:14px;background:#fff7ed;border:1px solid #fdba74;border-radius:10px;">'
+            + '<p style="margin:0 0 12px;color:#9a3412;">'+escapeHtml(data.message||'Claude(유료) API로 분석하시겠습니까?')+'</p>'
+            + '<button id="claude-yes" style="background:#4f6ef7;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-weight:700;">예, Claude로 분석</button> '
+            + '<button id="claude-no" style="background:#fff;color:#6b7280;border:1px solid #e3e8f5;border-radius:8px;padding:9px 18px;cursor:pointer;">아니오</button>'
+            + '</div>';
+          $('claude-yes').onclick = ()=> runAnalysis(q, true);
+          $('claude-no').onclick  = ()=>{ $('ans-text').textContent = 'Claude 분석을 취소했습니다.'; };
+          return;   // finally 에서 전송 버튼 재활성화
         }
         else if(ev === 'error'){ throw new Error(data.error||'LLM 오류'); }
       }
     }
     // 답변 완료 → 마크다운을 깔끔한 HTML로 변환
     const ansEl = $('ans-text');
-    if(ansEl){ ansEl.className = 'md'; ansEl.innerHTML = renderMarkdown(answerText); }
-    // 대화 이력에 저장
-    history.push({role:'user', content:q});
-    history.push({role:'assistant', content:answerText});
-    if(history.length > 8) history = history.slice(-8);
-    // 질문은 위 분석 결과 박스(q-echo)에 그대로 남으므로 입력칸은 비워 둔다
+    if(ansEl && answerText){ ansEl.className = 'md'; ansEl.innerHTML = renderMarkdown(answerText); }
+    // 대화 이력에 저장 (실제 답변이 있을 때만)
+    if(answerText){
+      history.push({role:'user', content:q});
+      history.push({role:'assistant', content:answerText});
+      if(history.length > 8) history = history.slice(-8);
+    }
   }catch(err){
     $('answer').innerHTML = '<h3 style="color:#dc2626;">오류</h3>'+escapeHtml(err.message);
     $('answer').style.display = 'block';
@@ -223,6 +243,13 @@ $('send').onclick = async () => {
     $('send').disabled = false;
     $('loading').style.display = 'none';
   }
+}
+
+$('send').onclick = () => {
+  const q = $('q').value.trim();
+  if(!q){ $('q').focus(); return; }
+  $('q').value = '';          // 분석 요청 시 입력칸 비우기
+  runAnalysis(q, false);
 };
 function escapeHtml(s){
   return (s||'').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
