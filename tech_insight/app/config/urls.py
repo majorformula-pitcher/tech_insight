@@ -23,11 +23,9 @@ from dashboard import views as dashboard_views
 urlpatterns = [
     path('admin/', admin.site.urls),
     # 로그인/로그아웃 (회원가입 없음 — 계정은 admin에서 직접 생성)
-    path('login/', auth_views.LoginView.as_view(
-        template_name='registration/login.html'), name='login'),
+    # 로그인 성공 시 staff는 /admin/, 일반 사용자는 /chat/ 으로 (RoleLoginView)
+    path('login/', dashboard_views.RoleLoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('dashboard/', include('dashboard.urls')),
     path('chat/', include('chatbot.urls')),
-    # [개발 편의용 — 배포 끝나면 삭제] 자동 로그인 (DEBUG에서만 동작)
-    path('dev-login/', dashboard_views.dev_autologin),
 ]

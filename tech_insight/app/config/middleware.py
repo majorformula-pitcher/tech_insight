@@ -11,7 +11,7 @@ from django.conf import settings
 from django.shortcuts import redirect
 
 # 인증 없이 접근 가능한 경로 접두사
-EXEMPT_PREFIXES = ("/login", "/logout", "/admin", "/static", "/dev-login")
+EXEMPT_PREFIXES = ("/login", "/logout", "/admin", "/static")
 
 
 class LoginRequiredMiddleware:
