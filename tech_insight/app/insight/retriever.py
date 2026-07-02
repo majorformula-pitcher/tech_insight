@@ -142,24 +142,32 @@ def retrieve(query: str, top_k: int = 5, source_type=None, filters=None) -> list
         source_type = [Source.Type.PAPER, Source.Type.BLOG]   # 근거 = 논문 + 블로그
     types = [source_type] if isinstance(source_type, str) else list(source_type)
 
-    qs = Document.objects.filter(source__type__in=types).exclude(summary="")
     # 구조화 조건(연도·월·카테고리·키워드)으로 후보를 먼저 제한 — 임베딩은 필터를 못 하므로 여기서 처리.
-    if filters:
-        if filters.get("year"):
-            qs = qs.filter(published_date__year=filters["year"])
-        if filters.get("month"):
-            qs = qs.filter(published_date__month=filters["month"])
+    base = Document.objects.filter(source__type__in=types).exclude(summary="")
+    f = filters or {}
+    VALS = ("id", "title", "summary", "authors", "affiliations",
+            "published_date", "url", "source__type", "source__name", "embedding")
+
+    def _filtered(with_keyword):
+        qs = base
+        if f.get("year"):
+            qs = qs.filter(published_date__year=f["year"])
+        if f.get("month"):
+            qs = qs.filter(published_date__month=f["month"])
         # category(AI/Robot/…)는 뉴스 전용 필드 → 뉴스 검색일 때만 적용(논문/블로그엔 없음)
-        if filters.get("category") and Source.Type.NEWS in types:
-            qs = qs.filter(category__iexact=filters["category"])
-        if filters.get("keyword"):
-            kw = filters["keyword"]
+        if f.get("category") and Source.Type.NEWS in types:
+            qs = qs.filter(category__iexact=f["category"])
+        if with_keyword and f.get("keyword"):
+            kw = f["keyword"]
             qs = qs.filter(Q(title__icontains=kw) | Q(authors__icontains=kw)
                            | Q(summary__icontains=kw))
+        return list(qs.values(*VALS))
 
-    cand = list(qs.values("id", "title", "summary", "authors", "affiliations",
-                          "published_date", "url", "source__type", "source__name",
-                          "embedding"))
+    cand = _filtered(with_keyword=True)
+    # 키워드 필터가 너무 좁아 0건이면, 키워드는 빼고(연도·월·카테고리는 유지) 재시도
+    # → 주제 매칭은 아래 의미(벡터) 검색이 담당하므로 결과가 사라지지 않는다.
+    if not cand and f.get("keyword"):
+        cand = _filtered(with_keyword=False)
     if not cand:
         return []
 
