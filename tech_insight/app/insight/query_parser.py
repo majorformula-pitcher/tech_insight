@@ -9,6 +9,7 @@ LLM 호출·JSON 파싱이 실패하면 필터 없이 원문 질의로 폴백하
 """
 import json
 import re
+from datetime import date
 
 from insight.llm import chat
 
@@ -37,7 +38,13 @@ def parse_query(question: str):
     if not q:
         return q, {}
     try:
-        raw = chat(_SYS, f"질문: {q}", max_tokens=250)
+        today = date.today()
+        sysmsg = _SYS + (
+            f" 오늘 날짜는 {today.isoformat()}이다. "
+            f"'작년'은 {today.year - 1}, '올해'는 {today.year}, "
+            f"'재작년'은 {today.year - 2}년으로 해석해 year에 넣어라. "
+            "'최근'처럼 특정 연도를 지목하지 않는 표현은 year를 null로 둔다.")
+        raw = chat(sysmsg, f"질문: {q}", max_tokens=250)
         m = re.search(r"\{.*\}", raw, re.S)
         data = json.loads(m.group(0)) if m else {}
     except Exception:  # noqa: BLE001  LLM 오류·JSON 파싱 실패 → 폴백
