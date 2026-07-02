@@ -44,6 +44,20 @@ def fetch_blog_rss(name: str, url: str, limit: int = 10) -> list[dict]:
     return fetch_feed(name, url, limit=limit)
 
 
+_URL_DATE = re.compile(r"/(\d{4})/(\d{2})/(\d{2})/")
+
+
+def date_from_url(url: str):
+    """URL 경로의 /YYYY/MM/DD/ 에서 발행일 추출 (예: BAIR). 없으면 None."""
+    m = _URL_DATE.search(url or "")
+    if not m:
+        return None
+    y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    if not (2000 <= y <= 2100 and 1 <= mo <= 12 and 1 <= d <= 31):
+        return None
+    return f"{y:04d}-{mo:02d}-{d:02d}"
+
+
 def fetch_blog_crawl(name: str, listing: str, pattern: str, limit: int = 10) -> list[dict]:
     """목록 페이지를 크롤링해 기사 링크·제목을 추출."""
     try:
@@ -65,7 +79,8 @@ def fetch_blog_crawl(name: str, listing: str, pattern: str, limit: int = 10) -> 
         items.append({
             "title": title,
             "url": url,
-            "published_date": None,           # 본문 페이지에서 보강(없으면 빈값)
+            # URL의 /YYYY/MM/DD/ 에서 발행일 추출 (BAIR 등). 없으면 본문에서 보강.
+            "published_date": date_from_url(url),
             "source_name": name,
             "rss_summary": "",
         })
