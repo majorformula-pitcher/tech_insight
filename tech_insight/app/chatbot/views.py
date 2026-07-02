@@ -29,7 +29,9 @@ ANALYSIS_PROMPT = (
     "대괄호로 표기하라(예: ...두께가 줄어든다[논문 1][뉴스 3]). "
     "각 자료 블록 앞에 붙은 번호(1,2,3…)를 그대로 쓰되, 'N'이나 'X' 같은 문자를 그대로 적지 말고 "
     "반드시 해당 자료의 실제 숫자로 바꿔 써라. 근거를 특정할 수 없는 문장은 쓰지 마라. "
-    "답변은 ①핵심 분석 ②파급효과 ③근거가 된 자료 흐름 순으로 간결하게."
+    "답변은 ①핵심 분석 ②파급효과 ③근거가 된 자료 흐름 세 부분으로 구성하라. "
+    "①핵심 분석과 ②파급효과는 각각 3가지 이상의 관점(기술·산업·시장·사회 등)으로 나누어, "
+    "각 항목을 근거와 함께 충분히 상세하고 구체적으로 서술하라(다만 근거에 없는 추측·과장은 금지)."
 )
 
 # 조회형 프롬프트 — '보여줘/알려줘/목록' 등 단순 조회 질문에 사용.
@@ -437,7 +439,7 @@ def ask_stream(request):
         # provider=claude(서버): Gemini(무료) 먼저 → 모든 모델 한도초과면 사용자 확인 후 Claude(유료)
         from insight.llm import gemini_analysis, GeminiExhausted, _stream_claude
         try:
-            text, gmodel = gemini_analysis(system_prompt, user_prompt, 4000)
+            text, gmodel = gemini_analysis(system_prompt, user_prompt, 8000)
         except GeminiExhausted:
             if not allow_claude:
                 # 사용자에게 Claude 사용 여부를 물어본다 (프론트에서 예/아니오)
@@ -447,7 +449,7 @@ def ask_stream(request):
             # 사용자가 승인 → Claude 스트리밍
             yield sse("engine", {"engine": "Claude"})
             try:
-                for piece in _stream_claude(system_prompt, user_prompt, 4000):
+                for piece in _stream_claude(system_prompt, user_prompt, 8000):
                     yield sse("token", {"t": piece})
             except Exception as e:  # noqa: BLE001
                 yield sse("error", {"error": str(e)})
