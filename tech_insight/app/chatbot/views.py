@@ -296,7 +296,8 @@ def _build_prompt(question, history=None, use_web=False):
 
 
 def _sources_of(docs, news=None, web=None):
-    """근거 자료 목록(논문+뉴스+웹)을 프론트 표시용으로 직렬화. 종류(kind) 라벨 포함."""
+    """근거 자료 목록(논문+뉴스+웹)을 프론트 표시용으로 직렬화.
+    cite: 답변의 인용 표기와 일치하는 번호(프롬프트가 docs=[논문 N]·news=[뉴스 N]·web=[웹 N])."""
     out = [
         {
             "title": d["title"],
@@ -304,9 +305,10 @@ def _sources_of(docs, news=None, web=None):
             "meta": d["affiliations"] or d.get("source_name", ""),
             "url": d.get("url", ""),
             "kind": "블로그" if d.get("source_type") == "blog" else "논문",
+            "cite": f"논문 {i + 1}",   # docs는 프롬프트에서 모두 [논문 N]으로 인용됨
             "score": d["score"],
         }
-        for d in docs
+        for i, d in enumerate(docs)
     ]
     out += [
         {
@@ -315,9 +317,10 @@ def _sources_of(docs, news=None, web=None):
             "meta": d["authors"],
             "url": d.get("url", ""),
             "kind": "뉴스",
+            "cite": f"뉴스 {i + 1}",
             "score": d["score"],
         }
-        for d in (news or [])
+        for i, d in enumerate(news or [])
     ]
     out += [
         {
@@ -326,9 +329,10 @@ def _sources_of(docs, news=None, web=None):
             "meta": w["url"],
             "url": w["url"],
             "kind": "웹",
+            "cite": f"웹 {i + 1}",
             "score": 0,
         }
-        for w in (web or [])
+        for i, w in enumerate(web or [])
     ]
     return out
 

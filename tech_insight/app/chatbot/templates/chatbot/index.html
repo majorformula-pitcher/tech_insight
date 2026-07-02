@@ -145,7 +145,8 @@ function renderSources(sources){
               : s.kind==='웹' ? 'kind-web'
               : s.kind==='블로그' ? 'kind-blog'
               : 'kind-paper';
-    const badge = '<span class="kind '+cls+'">'+escapeHtml(s.kind||'논문')+'</span>';
+    // 배지에 인용 번호 표시 (답변의 [논문 4]·[뉴스 2]·[웹 3]과 일치)
+    const badge = '<span class="kind '+cls+'">'+escapeHtml(s.cite||s.kind||'논문')+'</span>';
     const meta = [escapeHtml(s.published_date), escapeHtml(s.meta||'')].filter(Boolean).join(' · ');
     // URL(http/https)이 있으면 제목을 새 탭 링크로 — 없으면(예: 정보과학회지) 일반 텍스트
     const hasUrl = s.url && /^https?:\/\//i.test(s.url);
