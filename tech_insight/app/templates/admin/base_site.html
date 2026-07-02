@@ -221,8 +221,9 @@ fieldset.module {
 .change-form .field-authors .help,
 .change-form .field-affiliations .help,
 .change-form .field-metric .help { display: none; }
-/* 조회 전용 admin — 저장 버튼들 숨김(수정 안 함). 삭제 링크는 유지 */
-.change-form .submit-row input[type=submit] { display: none; }
+/* 조회 전용 admin — insight(문서) 편집 폼에서만 저장 버튼 숨김(수정 안 함).
+   auth(사용자/그룹) 등 다른 앱은 저장 버튼이 정상 노출된다. 삭제 링크는 유지 */
+body.app-insight .change-form .submit-row input[type=submit] { display: none; }
 .change-form .aligned input[type=text],
 .change-form .aligned input[type=url],
 .change-form .vTextField,
