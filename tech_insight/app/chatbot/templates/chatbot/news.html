@@ -116,8 +116,11 @@
   .engine-info .ts{opacity:.7;}
   .edit-box{margin-bottom:12px;}
   .edit-box input,.edit-box textarea{width:100%;border:1px solid var(--accent);border-radius:8px;
-    padding:8px 10px;font-size:14px;margin-bottom:6px;font-family:inherit;}
-  .edit-box textarea{min-height:120px;line-height:1.6;overflow:hidden;resize:vertical;}
+    padding:8px 10px;margin-bottom:6px;font-family:inherit;}
+  /* 수정 폼 폰트를 뷰 모드와 동일하게 — 제목은 .card h3, 본문은 .card ul 기준 */
+  .edit-box input{font-size:20px;line-height:1.4;font-weight:700;}
+  .edit-box textarea{min-height:120px;font-size:15.2px;line-height:1.5;color:#3a4256;
+    overflow:hidden;resize:vertical;}
   .empty{text-align:center;color:var(--muted);padding:50px;}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#2b2f3a;color:#fff;
     padding:10px 20px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .3s;z-index:50;}
