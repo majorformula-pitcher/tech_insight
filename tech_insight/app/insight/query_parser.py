@@ -32,6 +32,16 @@ _STYPE = {
 # 최근성(정렬을 최신순으로) 신호어
 _RECENCY = re.compile(r"최신|최근|요즘|근래|new\b", re.I)
 
+# 카테고리 '명시 단어'(도메인 요청 신호). 질문에 이게 있을 때만 category를 하드필터로 유지한다.
+# 특정 기술·제품·주제어(LLM, GPT, RAG …)는 category가 아니라 semantic_query로 → 과잉 제한 방지.
+_CAT_CUES = {
+    "AI": r"인공지능|머신러닝|딥러닝|(?<![A-Za-z])ai(?![A-Za-z])",
+    "Robot": r"로봇|휴머노이드|(?<![A-Za-z])robot",
+    "Security": r"보안|해킹|취약점|악성코드|암호|프라이버시|(?<![A-Za-z])security",
+    "Data": r"빅데이터|데이터베이스|데이터\s*엔지니어|데이터\s*센터|(?<![A-Za-z])db(?![A-Za-z])",
+    "IT": r"반도체|클라우드|네트워크|통신|소프트웨어|하드웨어|(?<![A-Za-z])it(?![A-Za-z])",
+}
+
 _SYS = (
     "너는 검색 질의 분석기다. 사용자의 한국어 질문에서 검색 조건을 추출해 "
     "JSON 객체 하나만 출력한다(설명·코드블록 금지). 날짜(연·월)는 다루지 말 것. "
@@ -176,10 +186,12 @@ def parse_query(question: str, today: date | None = None):
     # category는 '확실할 때만' 하드필터로. LLM의 과잉 추론을 차단:
     #  - '기타'는 사실상 '모름' → 드롭
     #  - author가 있으면 사람 이름에서 분야를 추론한 것일 가능성이 커 드롭
-    #    (저자 조건이 진짜 의도이고, 주제는 semantic이 담당)
+    #  - 질문에 해당 분야의 '명시 단어'(로봇/보안/인공지능 등)가 있을 때만 유지.
+    #    'LLM 관련 데이터'처럼 특정 주제어를 category(AI)로 바꿔 과잉 제한하는 것을 막는다.
     cat = data.get("category")
-    if isinstance(cat, str) and cat.strip() in _CATS and cat.strip() != "기타" \
-            and "author" not in plan:
+    if (isinstance(cat, str) and cat.strip() in _CATS and cat.strip() != "기타"
+            and "author" not in plan
+            and re.search(_CAT_CUES.get(cat.strip(), r"(?!x)x"), q, re.I)):
         plan["category"] = cat.strip()
 
     lim = data.get("limit")
