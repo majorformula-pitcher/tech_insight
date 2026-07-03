@@ -132,7 +132,9 @@ def retrieve(query: str, top_k: int = 5, source_type=None, filters=None) -> list
     질문과 관련된 문서 top_k개를 반환 (벡터+키워드 하이브리드).
     기본 근거 풀은 '논문 + 연구소 블로그'. source_type="news" 면 뉴스를 검색한다.
     source_type 은 문자열 또는 리스트 모두 허용.
-    filters(dict, 선택): year·month·category·keyword 로 후보를 먼저 거른다(구조화 조건).
+    filters(dict=plan, 선택): 하드 슬롯으로 후보를 정확히 거른다(설계: 하드/소프트 분리).
+      date_from/date_to(ISO 범위), category, source_type, source_name, author, sort.
+      ※ 주제(keyword)는 하드필터로 걸지 않는다 — 아래 의미(벡터)+키워드 랭킹이 담당.
     각 항목: {id, title, summary, authors, affiliations, published_date, score, ...}
     """
     if not query.strip():
@@ -142,54 +144,63 @@ def retrieve(query: str, top_k: int = 5, source_type=None, filters=None) -> list
         source_type = [Source.Type.PAPER, Source.Type.BLOG]   # 근거 = 논문 + 블로그
     types = [source_type] if isinstance(source_type, str) else list(source_type)
 
-    # 구조화 조건(연도·월·카테고리·키워드)으로 후보를 먼저 제한 — 임베딩은 필터를 못 하므로 여기서 처리.
-    base = Document.objects.filter(source__type__in=types).exclude(summary="")
     f = filters or {}
     VALS = ("id", "title", "summary", "authors", "affiliations",
             "published_date", "url", "source__type", "source__name", "embedding")
 
-    def _filtered(with_keyword):
-        qs = base
-        if f.get("year"):
-            qs = qs.filter(published_date__year=f["year"])
-        if f.get("month"):
-            qs = qs.filter(published_date__month=f["month"])
-        # category(AI/Robot/…)는 뉴스 전용 필드 → 뉴스 검색일 때만 적용(논문/블로그엔 없음)
-        if f.get("category") and Source.Type.NEWS in types:
-            qs = qs.filter(category__iexact=f["category"])
-        if with_keyword and f.get("keyword"):
-            kw = f["keyword"]
-            qs = qs.filter(Q(title__icontains=kw) | Q(authors__icontains=kw)
-                           | Q(summary__icontains=kw))
-        return list(qs.values(*VALS))
+    base = Document.objects.filter(source__type__in=types).exclude(summary="")
 
-    cand = _filtered(with_keyword=True)
-    # 키워드 필터가 너무 좁아 0건이면, 키워드는 빼고(연도·월·카테고리는 유지) 재시도
-    # → 주제 매칭은 아래 의미(벡터) 검색이 담당하므로 결과가 사라지지 않는다.
-    if not cand and f.get("keyword"):
-        cand = _filtered(with_keyword=False)
+    # source_type 슬롯: views가 [논문+블로그]와 [뉴스]를 각각 호출하므로,
+    # 슬롯이 이 호출의 범위와 안 맞으면 빈 결과(→ 한쪽만 남긴다).
+    _STMAP = {"paper": Source.Type.PAPER, "news": Source.Type.NEWS, "blog": Source.Type.BLOG}
+    want = _STMAP.get(f.get("source_type"))
+    if want is not None:
+        if want not in types:
+            return []
+        base = base.filter(source__type=want)
+
+    # 하드 슬롯 필터 (정확히 일치해야 하는 메타데이터만)
+    qs = base
+    if f.get("date_from") and f.get("date_to"):
+        qs = qs.filter(published_date__range=(f["date_from"], f["date_to"]))
+    if f.get("category"):
+        qs = qs.filter(category__iexact=f["category"])
+    if f.get("source_name"):          # 논문/블로그는 source.name, 뉴스는 authors(매체 도메인)
+        s = f["source_name"]
+        qs = qs.filter(Q(source__name__icontains=s) | Q(authors__icontains=s))
+    if f.get("author"):
+        a = f["author"]
+        qs = qs.filter(Q(authors__icontains=a) | Q(affiliations__icontains=a))
+
+    cand = list(qs.values(*VALS))
     if not cand:
-        return []
+        return []                     # 명시 조건에 맞는 후보 없음 → 정직하게 빈 결과(views가 안내)
 
-    # 잡음·조사를 제거한 핵심어로 검색(벡터 임베딩도 정제 질문 기준).
-    # 핵심어가 하나도 없으면(전부 불용어) 원문으로 폴백.
+    by_id = {d["id"]: d for d in cand}
+
+    # 주제 랭킹: 잡음·조사를 제거한 핵심어로 벡터+키워드 하이브리드(RRF)
     core = _tokens(query)
     clean_q = " ".join(core) if core else query
-
-    vec = _vector_ranked(clean_q, cand)       # [(id, sim)] — 정제 질문으로 임베딩
-    kw = _keyword_ranked(query, cand)         # [(id, score)] — 내부에서 _tokens 로 정제됨
-
-    # RRF 결합: 각 랭킹에서의 순위로 점수화 후 합산
+    vec = _vector_ranked(clean_q, cand)       # [(id, sim)]
+    kw = _keyword_ranked(query, cand)         # [(id, score)]
     fused = {}
     for rank, (doc_id, _) in enumerate(vec):
         fused[doc_id] = fused.get(doc_id, 0.0) + 1.0 / (RRF_K + rank + 1)
     for rank, (doc_id, _) in enumerate(kw):
         fused[doc_id] = fused.get(doc_id, 0.0) + 1.0 / (RRF_K + rank + 1)
-    if not fused:
-        return []
 
-    by_id = {d["id"]: d for d in cand}
-    top_ids = sorted(fused, key=lambda i: -fused[i])[:top_k]
+    def _date_key(i):
+        d = by_id[i]["published_date"]
+        return (d is not None, d)             # None(날짜없음)은 뒤로
+
+    if fused and f.get("sort") != "date_desc":
+        top_ids = sorted(fused, key=lambda i: -fused[i])[:top_k]     # 관련도순
+    elif fused:
+        top_ids = sorted(fused, key=_date_key, reverse=True)[:top_k]  # 관련 후보를 최신순
+    else:
+        # 주제 신호가 없는 순수 필터 조회 → 후보 전체를 최신순으로
+        top_ids = sorted(by_id, key=_date_key, reverse=True)[:top_k]
+
     results = []
     for doc_id in top_ids:
         d = by_id[doc_id]
@@ -203,6 +214,6 @@ def retrieve(query: str, top_k: int = 5, source_type=None, filters=None) -> list
             "url": d.get("url", ""),
             "source_type": d.get("source__type", ""),
             "source_name": d.get("source__name", ""),
-            "score": round(fused[doc_id], 5),
+            "score": round(fused.get(doc_id, 0.0), 5),
         })
     return results

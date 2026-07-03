@@ -185,7 +185,34 @@ def _first_sentence(text):
     return (parts[0] if parts else t).strip()
 
 
-def _format_lookup_answer(docs, news):
+_CAT_KO = {"AI": "AI", "Robot": "로봇", "Security": "보안", "Data": "데이터",
+           "IT": "IT", "기타": "기타"}
+_STYPE_KO = {"paper": "논문", "news": "뉴스", "blog": "블로그"}
+
+
+def _describe_constraints(plan):
+    """plan의 하드 제약을 사람이 읽을 한국어 구로. 빈 결과 안내에 사용."""
+    if not plan:
+        return ""
+    parts = []
+    df, dt = plan.get("date_from"), plan.get("date_to")
+    if df and dt:
+        if df[:4] == dt[:4] and df[5:] == "01-01" and dt[5:] == "12-31":
+            parts.append(f"{df[:4]}년")                 # 한 해 전체
+        else:
+            parts.append(f"{df}~{dt}")
+    if plan.get("category"):
+        parts.append(f"{_CAT_KO.get(plan['category'], plan['category'])} 분야")
+    if plan.get("source_type"):
+        parts.append(_STYPE_KO.get(plan["source_type"], plan["source_type"]))
+    if plan.get("source_name"):
+        parts.append(f"{plan['source_name']} 출처")
+    if plan.get("author"):
+        parts.append(f"저자 '{plan['author']}'")
+    return " · ".join(parts)
+
+
+def _format_lookup_answer(docs, news, plan=None):
     """조회형 답변: 검색된 자료를 LLM 없이 그대로 목록 마크다운으로 만든다.
     작은 모델이 20여 건을 옮기다 누락·환각하는 문제를 피하고 100% 정확하게 보여준다."""
     def line(d):
@@ -212,7 +239,13 @@ def _format_lookup_answer(docs, news):
     section("논문 자료", papers)
     section("블로그 자료", blogs)
     section("뉴스 자료", news)
-    return "\n".join(parts) if parts else "관련 저장 자료를 찾지 못했습니다."
+    if parts:
+        return "\n".join(parts)
+    # 정직한 빈결과: 사용자가 지정한 조건을 그대로 알려준다(몰래 조건 완화하지 않음).
+    desc = _describe_constraints(plan)
+    if desc:
+        return f"**{desc}** 조건에 해당하는 저장 자료가 없습니다.\n\n다른 조건으로 검색해 보세요."
+    return "관련 저장 자료를 찾지 못했습니다."
 
 
 def _build_prompt(question, history=None, use_web=False):
@@ -303,7 +336,7 @@ def _build_prompt(question, history=None, use_web=False):
         + tail
     )
     system_prompt = ANALYSIS_PROMPT if is_analysis else LOOKUP_PROMPT
-    return docs, news, web, user_prompt, system_prompt
+    return docs, news, web, user_prompt, system_prompt, qfilters
 
 
 def _sources_of(docs, news=None, web=None):
@@ -358,11 +391,11 @@ def ask(request):
     question = (payload.get("question") or "").strip()
     if not question:
         return JsonResponse({"error": "질문을 입력하세요."}, status=400)
-    docs, news, web, user_prompt, system_prompt = _build_prompt(
+    docs, news, web, user_prompt, system_prompt, plan = _build_prompt(
         question, payload.get("history"), use_web=bool(payload.get("web")))
     # 조회형은 LLM 없이 검색 결과를 그대로 목록화(정확·완전). 분석형만 LLM 호출.
     if not _is_analysis(question):
-        answer = _format_lookup_answer(docs, news)
+        answer = _format_lookup_answer(docs, news, plan)
     else:
         try:
             answer = chat(system_prompt, user_prompt, max_tokens=4000)
@@ -418,7 +451,7 @@ def ask_stream(request):
     if not question:
         return JsonResponse({"error": "질문을 입력하세요."}, status=400)
 
-    docs, news, web, user_prompt, system_prompt = _build_prompt(
+    docs, news, web, user_prompt, system_prompt, plan = _build_prompt(
         question, payload.get("history"), use_web=bool(payload.get("web")))
 
     analysis = _is_analysis(question)
@@ -432,7 +465,7 @@ def ask_stream(request):
         yield sse("sources", _sources_of(docs, news, web))
         # 조회형: LLM 없이 검색 결과를 그대로 목록화해 한 번에 보낸다(정확·완전).
         if not analysis:
-            yield sse("token", {"t": _format_lookup_answer(docs, news)})
+            yield sse("token", {"t": _format_lookup_answer(docs, news, plan)})
             yield sse("done", {})
             return
         # 분석형
