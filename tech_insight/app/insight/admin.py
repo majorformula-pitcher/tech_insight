@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
+from .categories import CATEGORY_KO
 from .models import (
     Source, Keyword, Document, Chunk,
     JournalDocument, ScholarDocument, HFDocument, NewsDocument,
@@ -54,7 +55,7 @@ class DocumentAdmin(admin.ModelAdmin):
     filter_horizontal = ("keywords",)
     inlines = [ChunkInline]
     # 모든 값은 수집/동기화로 채워지므로 admin 에서는 읽기 전용(표시만)으로 둔다.
-    readonly_fields = ("source", "title", "authors", "affiliations",
+    readonly_fields = ("source", "title", "authors", "category_label", "affiliations",
                        "published_date", "metric", "status", "file_path",
                        "created_at", "summary_bullets", "url_link")
 
@@ -69,7 +70,7 @@ class DocumentAdmin(admin.ModelAdmin):
     # 원문 PDF는 저작권(공중송신·배포) 문제로 웹 제공하지 않는다 — 요약만 노출.
     fieldsets = (
         ("기본 정보", {
-            "fields": ("source", "title", "authors", "affiliations",
+            "fields": ("source", "title", "authors", "category_label", "affiliations",
                        "published_date", "metric", "status"),
         }),
         ("AI 요약", {
@@ -126,6 +127,14 @@ class DocumentAdmin(admin.ModelAdmin):
         if not obj.url:
             return "—"
         return format_html('<a href="{0}" target="_blank" rel="noopener">{0}</a>', obj.url)
+
+    @admin.display(description="카테고리")
+    def category_label(self, obj):
+        """DB에 저장된 category를 표시(읽기 전용). 한글 라벨 병기, 없으면 —."""
+        if not obj.category:
+            return "—"
+        ko = CATEGORY_KO.get(obj.category)
+        return f"{obj.category} ({ko})" if ko and ko != obj.category else obj.category
 
 
 # ── 출처별 프록시 admin 등록 (왼쪽 메뉴를 출처별로 분리) ──────────────
