@@ -18,10 +18,9 @@ import json
 import re
 from datetime import date
 
+from insight.categories import CATEGORY_SET as _CATS  # 카테고리 닫힌 집합(SSOT)
 from insight.llm import chat
 
-# 카테고리 닫힌 집합
-_CATS = {"AI", "Robot", "Security", "Data", "IT", "기타"}
 # 출처 유형 정규화 (한국어/영어 → 내부 코드)
 _STYPE = {
     "paper": "paper", "논문": "paper", "저널": "paper",
@@ -40,13 +39,14 @@ _CAT_CUES = {
     "Security": r"보안|해킹|취약점|악성코드|암호|프라이버시|(?<![A-Za-z])security",
     "Data": r"빅데이터|데이터베이스|데이터\s*엔지니어|데이터\s*센터|(?<![A-Za-z])db(?![A-Za-z])",
     "IT": r"반도체|클라우드|네트워크|통신|소프트웨어|하드웨어|(?<![A-Za-z])it(?![A-Za-z])",
+    "Display": r"디스플레이|올레드|패널|(?<![A-Za-z])display|(?<![A-Za-z])oled|(?<![A-Za-z])lcd|(?<![A-Za-z])led\b",
 }
 
 _SYS = (
     "너는 검색 질의 분석기다. 사용자의 한국어 질문에서 검색 조건을 추출해 "
     "JSON 객체 하나만 출력한다(설명·코드블록 금지). 날짜(연·월)는 다루지 말 것. "
     "필드: "
-    "category(정확히 하나 또는 null: AI, Robot, Security, Data, IT, 기타), "
+    "category(정확히 하나 또는 null: AI, Robot, Security, Data, IT, Display(디스플레이·패널·OLED), 기타), "
     "source_type(다음 중 하나 또는 null: paper(논문), news(뉴스), blog(블로그)), "
     "source_name(특정 매체·기관명 또는 null. 예: OpenAI, arXiv, 정보과학회지), "
     "author(저자·연구자·소속 이름 또는 null), "

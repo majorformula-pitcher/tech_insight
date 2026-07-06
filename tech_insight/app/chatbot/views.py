@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST, require_GET
 
+from insight.categories import CATEGORIES, CATEGORY_KO  # SSOT
 from insight.llm import (chat, stream, current_provider, current_model,
                          set_ollama_model, list_ollama_models)
 from insight.retriever import retrieve, _tokens
@@ -125,7 +126,7 @@ def news(request):
     } for d in qs]
 
     # 카테고리별 개수
-    cats = ["All", "AI", "Robot", "Security", "Data", "IT", "기타"]
+    cats = ["All", *CATEGORIES]
     return render(request, "chatbot/news.html", {
         "items": items, "cats": cats,
         "active_cat": category or "All", "query": query,
@@ -185,8 +186,7 @@ def _first_sentence(text):
     return (parts[0] if parts else t).strip()
 
 
-_CAT_KO = {"AI": "AI", "Robot": "로봇", "Security": "보안", "Data": "데이터",
-           "IT": "IT", "기타": "기타"}
+_CAT_KO = CATEGORY_KO  # SSOT (insight.categories)
 _STYPE_KO = {"paper": "논문", "news": "뉴스", "blog": "블로그"}
 
 

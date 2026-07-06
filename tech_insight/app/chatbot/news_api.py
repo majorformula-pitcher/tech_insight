@@ -10,18 +10,18 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_POST
 
+from insight.categories import CATEGORIES  # SSOT
 from insight.collectors.news import RSS_FEEDS, fetch_feed, extract_article
 from insight.llm import chat
 from insight.models import Source, Document
 
 SUMMARY_SYSTEM = (
     "너는 뉴스 요약 전문가다. 한국어로만 답하고, 반드시 아래 JSON 형식으로만 출력한다.\n"
-    '{"category": "AI/Robot/Security/Data/IT/기타 중 하나", '
+    '{"category": "AI/Robot/Security/Data/IT/Display/기타 중 하나", '
     '"summary": ["문장1", "문장2", "문장3", "문장4"]}\n'
     "summary는 4문장, 각 문장은 '~입니다/~했습니다' 평어체, 숫자·불릿 금지, "
     "구체적 수치·고유명사·핵심 결과 포함."
 )
-CATEGORIES = ["AI", "Robot", "Security", "Data", "IT", "기타"]
 
 
 def _parse_summary(raw):
