@@ -37,6 +37,11 @@ Thumbs.db
 .idea/
 *.swp
 
-# ===== 주의: db.sqlite3 는 일부러 포함 =====
-# 216편 본문이 들어있어 서버에서 바로 데이터가 보이도록 커밋한다.
-# (운영에서 민감 데이터가 생기면 그때 제외 고려)
+# ===== DB 는 git 추적 제외 =====
+# 예전엔 데이터 부트스트랩용으로 db.sqlite3 를 커밋했으나,
+# 이제 로컬↔Oracle 간 데이터는 스냅샷 다운로드로 관리한다(git은 코드만).
+# 추적하면 배포 때 살아있는 DB와 충돌하고 리포도 비대해진다.
+tech_insight/app/db.sqlite3
+tech_insight/app/*.sqlite3
+tech_insight/app/*.sqlite3_
+tech_insight/app/db_backup_*.sqlite3
