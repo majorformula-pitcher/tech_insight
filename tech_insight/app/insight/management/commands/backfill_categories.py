@@ -18,20 +18,14 @@ import re
 
 from django.core.management.base import BaseCommand
 
+from insight.categories import CATEGORIES as CATS, CATEGORY_SET as _CATSET  # SSOT
+from insight.classify import CLASSIFY_GUIDE  # 분류 기준 설명 SSOT
 from insight.llm import chat, current_model
 from insight.models import Document, Source
 
-CATS = ["AI", "Robot", "Security", "Data", "IT", "기타"]
-_CATSET = set(CATS)
-
 _SYS = (
-    "너는 기술 문서 분류기다. 각 문서를 다음 6개 중 정확히 하나로 분류한다: "
-    "AI(인공지능·머신러닝·LLM·컴퓨터비전·음성), "
-    "Robot(로봇·휴머노이드·자율주행·제어), "
-    "Security(보안·암호·해킹·프라이버시), "
-    "Data(데이터베이스·빅데이터·데이터엔지니어링·분석 인프라), "
-    "IT(반도체·클라우드·네트워크·SW개발·기업/서비스 일반), "
-    "기타(위에 안 맞음). "
+    "너는 기술 문서 분류기다. 각 문서를 다음 7개 중 정확히 하나로 분류한다: "
+    + CLASSIFY_GUIDE + ". "
     "입력은 번호가 매겨진 문서 목록이다. "
     'JSON 객체 하나만 출력한다(설명 금지). 형식: {"1":"AI","2":"Robot",...} '
     "모든 번호에 대해 반드시 값을 준다."

@@ -13,6 +13,7 @@
 """
 from django.core.management.base import BaseCommand
 
+from insight.classify import classify_category
 from insight.collectors.blogs import fetch_all_blogs
 from insight.collectors.news import extract_article
 from insight.llm import chat, current_provider, current_model
@@ -91,6 +92,9 @@ class Command(BaseCommand):
                         n_skip += 1
                         continue
 
+                # 수집 시 카테고리 자동 분류(요약이 있을 때만 — --no-summary/실패 시엔 빈값→백필 대상)
+                category = classify_category(title, summary) if summary else ""
+
                 Document.objects.create(
                     source=source,
                     title=(title or "(제목 없음)")[:500],
@@ -98,6 +102,7 @@ class Command(BaseCommand):
                     published_date=it.get("published_date"),
                     raw_text=body,
                     summary=summary,
+                    category=category,
                     image=image[:1000] if image else "",
                     url=url,
                     engine=(engine_label if summary else ""),

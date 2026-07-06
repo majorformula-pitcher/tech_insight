@@ -18,6 +18,7 @@ import time
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
+from insight.classify import classify_category
 from insight.collectors.arxiv import ARXIV_CATEGORIES, fetch_category, download_pdf
 from insight.llm import chat
 from insight.models import Source, Document
@@ -112,6 +113,10 @@ class Command(BaseCommand):
                         self.stderr.write(self.style.WARNING(
                             f"  요약 실패: {it['title'][:30]} :: {e}"))
 
+                # 수집 시 카테고리 자동 분류(요약/초록 기반). 분류 실패는 '기타'로 폴백.
+                category = (classify_category(it["title"], summary or abstract)
+                           if do_summary else "")
+
                 Document.objects.create(
                     source=source,
                     title=it["title"][:500],
@@ -122,7 +127,7 @@ class Command(BaseCommand):
                     summary=summary,           # 한국어 요약 (검색·표시용)
                     url=it["url"],
                     file_path=file_path,
-                    category="",               # 논문은 뉴스 카테고리 미사용
+                    category=category,
                     status=(Document.Status.ANALYZED if summary
                             else Document.Status.EXTRACTED),
                 )
