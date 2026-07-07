@@ -11,7 +11,8 @@ from django.conf import settings
 from django.shortcuts import redirect
 
 # 인증 없이 접근 가능한 경로 접두사
-EXEMPT_PREFIXES = ("/login", "/logout", "/admin", "/static")
+# /api : 조회 전용 공개 API — 세션이 아닌 토큰(Bearer)으로 자체 인증하므로 로그인 리다이렉트 제외
+EXEMPT_PREFIXES = ("/login", "/logout", "/admin", "/static", "/api")
 
 
 class LoginRequiredMiddleware:

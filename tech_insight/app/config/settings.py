@@ -65,6 +65,10 @@ LOGOUT_REDIRECT_URL = "/login/"
 # 나중에 로컬 PC에서도 켜려면 start.bat 등에 REQUIRE_LOGIN=1 을 설정하면 된다.
 REQUIRE_LOGIN = os.environ.get("REQUIRE_LOGIN", "0" if DEBUG else "1") == "1"
 
+# 조회 전용 공개 API 토큰(쉼표구분). Authorization: Bearer <token> 로 인증.
+# 값이 비어있으면 API는 전부 401(사실상 비활성). .env 로 관리(git 제외).
+API_TOKENS = os.environ.get("API_TOKENS", "")
+
 
 # Application definition
 

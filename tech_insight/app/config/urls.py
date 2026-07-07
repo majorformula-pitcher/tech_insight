@@ -19,9 +19,15 @@ from django.contrib.auth import views as auth_views
 from django.urls import include, path
 from django.views.generic.base import RedirectView
 
+from chatbot import api_public
 from dashboard import views as dashboard_views
 
 urlpatterns = [
+    # 조회 전용 공개 API (읽기 전용, 토큰 인증) — 부서 내 활용/분석용
+    path('api/v1/search/', api_public.search),
+    path('api/v1/documents/<int:doc_id>/', api_public.document),
+    path('api/v1/embeddings/', api_public.embeddings),
+    path('api/v1/meta/', api_public.meta),
     # admin 기본 로그인 화면을 커스텀 /login/ 으로 통일 (admin.site.urls 보다 먼저 매칭돼야 함).
     # query_string=True 로 ?next=... 를 그대로 넘겨 로그인 후 원래 admin 페이지로 복귀.
     path('admin/login/', RedirectView.as_view(url='/login/', query_string=True)),
