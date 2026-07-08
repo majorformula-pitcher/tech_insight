@@ -28,6 +28,9 @@ tech_insight/data_source/
 *.log
 _*.txt
 *.bat
+# 런처 .bat 은 추적(비밀값은 파일에 안 넣고 .env 에서 읽음)
+!tech_insight/start.bat
+!tech_insight/mcp/start_http_mcp.bat
 # 런타임 모델 전환 상태(각 환경별 로컬 상태 — 커밋 제외)
 runtime_ollama_model.txt
 
