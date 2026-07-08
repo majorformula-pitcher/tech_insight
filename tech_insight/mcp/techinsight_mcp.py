@@ -20,7 +20,13 @@ API = os.environ.get("TECHINSIGHT_API", "http://168.107.27.0:8000/api/v1").rstri
 TOKEN = os.environ.get("TECHINSIGHT_TOKEN", "")
 _HEADERS = {"Authorization": f"Bearer {TOKEN}"}
 
-mcp = FastMCP("tech-insight")
+# 전송방식: MCP_TRANSPORT=http 면 HTTP(streamable-http) 서버로, 아니면 stdio(기본).
+# HTTP 모드는 MCP_HOST/MCP_PORT 에서 수신(기본 127.0.0.1:9000, 엔드포인트 /mcp).
+mcp = FastMCP(
+    "tech-insight",
+    host=os.environ.get("MCP_HOST", "127.0.0.1"),
+    port=int(os.environ.get("MCP_PORT", "9000")),
+)
 
 
 def _get(path: str, params: dict | None = None):
@@ -69,4 +75,8 @@ def list_metadata() -> dict:
 
 
 if __name__ == "__main__":
-    mcp.run()
+    _transport = os.environ.get("MCP_TRANSPORT", "stdio").strip().lower()
+    if _transport in ("http", "streamable-http"):
+        mcp.run(transport="streamable-http")   # HTTP 엔드포인트(기본 /mcp)로 대기
+    else:
+        mcp.run()                              # stdio (Claude가 자식 프로세스로 실행)
